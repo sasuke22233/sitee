@@ -8,6 +8,7 @@ import {
 import { ACC } from './data.mjs';
 
 const HOUR = 3600_000;
+const DAY = 24 * HOUR;
 
 export const TRANSITIONS = {
   created: ['awaiting_payment', 'paid_escrow', 'cancelled', 'expired'],
@@ -445,6 +446,22 @@ export function shopAdmins(ctx, shopId) {
 // ---------------------------------------------------------------------------
 // Таймеры (эквивалент backend/internal/api/jobs.go)
 // ---------------------------------------------------------------------------
+// plural — русская форма числительного: 1 день, 2 дня, 5 дней.
+export function plural(n, one, few, many) {
+  const mod10 = n % 10;
+  const mod100 = n % 100;
+  if (mod10 === 1 && mod100 !== 11) return one;
+  if (mod10 >= 2 && mod10 <= 4 && (mod100 < 10 || mod100 >= 20)) return few;
+  return many;
+}
+
+// dateOnly — дата в формате ДД.ММ.ГГГГ (для текстов уведомлений).
+export function dateOnly(iso) {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return '—';
+  return d.toLocaleDateString('ru-RU', { day: '2-digit', month: '2-digit', year: 'numeric' });
+}
+
 export function runTimers(ctx) {
   const now = Date.now();
   let touched = 0;
@@ -525,6 +542,22 @@ export function runTimers(ctx) {
         `${shop.name}: ${rentBody(sub.status, sub.period_end)}`, `rent:${shopId}:${sub.status}:${sub.period_end}`);
       push(ctx, shop.admin_user_id, 'rent.updated', { shop_id: shopId, status: sub.status });
       touched += 1;
+    }
+    // FR-SHOP-05: напоминания T-5/3/1 суток до окончания аренды, по одному на порог.
+    if (['trial', 'active', 'expiring'].includes(sub.status) && end) {
+      sub.rent_reminders ??= {};
+      for (const days of [5, 3, 1]) {
+        const threshold = end - days * DAY;
+        if (now > threshold && !sub.rent_reminders[days]) {
+          sub.rent_reminders[days] = new Date(now).toISOString();
+          notify(ctx, shop.admin_user_id, 'rent_reminder',
+            `Аренда «${shop.name}» истекает через ${days} ${plural(days, 'день', 'дня', 'дней')}`,
+            `До ${dateOnly(sub.period_end)} осталось ${days} ${plural(days, 'день', 'дня', 'дней')}. `
+            + 'Продлите аренду, иначе магазин уйдёт в grace на 72 часа, а новые заказы будут запрещены.',
+            `rent:${shopId}:remind:${days}:${sub.period_end}`);
+          touched += 1;
+        }
+      }
     }
   }
 

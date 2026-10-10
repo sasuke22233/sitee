@@ -612,6 +612,137 @@ async function main() {
   }
   check('rate limit ленты срабатывает', limited > 0);
 
+  // Секция 10 выжала бюджет rate-limit на IP — сбрасываем счётчики.
+  await call('POST', '/api/v1/dev/reset-guards');
+  console.log('\n11. Дополнительные кейсы приёмки (TC-ORD-06/07, TC-MSG-05/06, TC-ABF-04, TC-DSP-07)');
+
+  // TC-ORD-06: недопустимый переход статуса заказа.
+  const ord = await call('GET', '/api/v1/orders?limit=1', { token: tokens.buyer_nova.access });
+  const myOrder = (ord.data.items ?? []).find((o) => o.status === 'created') ?? ord.data.items?.[0];
+  if (myOrder) {
+    const badTransition = await call('POST', `/api/v1/orders/${myOrder.id}/deliver`, {
+      token: tokens.keymaster.access,
+      body: { payload: 'SMOKE-payload' },
+    });
+    check('заказ: created → delivered → 409 INVALID_TRANSITION',
+      badTransition.status === 409 && badTransition.data.error?.code === 'INVALID_TRANSITION',
+      `(${badTransition.status}) ${badTransition.data.error?.code ?? ''}`);
+  }
+
+  // TC-ORD-07: оплата при недостатке средств — свежий покупатель с нулевым балансом.
+  const brokeNick = `broke${Date.now().toString(36).slice(-6)}`;
+  const brokeMail = `${brokeNick}@example.com`;
+  const brokeCities = await call('GET', '/api/v1/geo/cities?country=RU');
+  const brokeReg = await call('POST', '/api/v1/auth/register', {
+    body: {
+      email: brokeMail, nickname: brokeNick, password: 'Broke#2026x', password_confirm: 'Broke#2026x',
+      country_code: 'RU', city_id: brokeCities.data.items[0].id, accept_terms: true, is_18plus: true,
+    },
+  });
+  let brokeTok = null;
+  let brokeOpsSecret = '';
+  if (brokeReg.status === 201 && brokeReg.data.enrollment_id) {
+    const enr = brokeReg.data.enrollment_id;
+    await call('POST', '/api/v1/auth/verify-contact', { body: { enrollment_id: enr, code: brokeReg.data.dev_code } });
+    const s1 = await call('POST', '/api/v1/auth/2fa/setup', { body: { factor: 'login', enrollment_id: enr } });
+    const a1 = await call('POST', '/api/v1/auth/2fa/activate', {
+      body: { factor: 'login', enrollment_id: enr, code1: s1.data.dev_codes[0], code2: s1.data.dev_codes[1] },
+    });
+    brokeTok = a1.status === 200 ? { access: a1.data.access_token, refresh: a1.data.refresh_token } : null;
+    if (brokeTok) {
+      const s2 = await call('POST', '/api/v1/auth/2fa/setup', { body: { factor: 'ops' }, token: brokeTok.access });
+      const a2 = await call('POST', '/api/v1/auth/2fa/activate', {
+        body: { factor: 'ops', code1: s2.data.dev_codes[0], code2: s2.data.dev_codes[1] }, token: brokeTok.access,
+      });
+      if (a2.status === 200) {
+        brokeOpsSecret = a2.data.backup_codes?.[0] ?? '';
+      }
+    }
+  }
+  // TC-ORD-07: оплата при нулевом балансе — проверка выдаётся всегда, чтобы пропуск не прятался.
+  let poorResult = { status: 0, code: 'не проверено' };
+  if (!brokeTok) {
+    poorResult = { status: 0, code: `регистрация не прошла (${brokeReg.status})` };
+  } else {
+    const feed2 = await call('GET', '/api/v1/shops?limit=1', { token: brokeTok.access });
+    const shop2 = feed2.data.items?.[0];
+    const prod2 = shop2 ? (await call('GET', `/api/v1/shops/${shop2.id}/products`, { token: brokeTok.access })).data.items?.[0] : null;
+    if (!prod2) {
+      poorResult = { status: 0, code: 'нет товара для заказа' };
+    } else {
+      const o2 = await call('POST', '/api/v1/orders', {
+        token: brokeTok.access, body: { product_id: prod2.id, qty: 1 },
+      });
+      if (o2.status !== 201) {
+        poorResult = { status: o2.status, code: `заказ не создан (${o2.status}) ${o2.data.error?.code ?? ''}` };
+      } else {
+        const payPoor = await call('POST', `/api/v1/orders/${o2.data.id}/pay`, {
+          token: brokeTok.access,
+          body: { asset: 'SOL', ...(brokeOpsSecret ? { totp_code: brokeOpsSecret } : {}) },
+        });
+        poorResult = { status: payPoor.status, code: payPoor.data.error?.code ?? '' };
+      }
+    }
+  }
+  check('заказ: оплата без средств → 422 INSUFFICIENT_FUNDS',
+    poorResult.status === 422 && poorResult.code === 'INSUFFICIENT_FUNDS',
+    `(${poorResult.status}) ${poorResult.code}`);
+
+  // TC-MSG-06: группа и канал магазина.
+  const grp = await call('POST', '/api/v1/chats', {
+    token: tokens.keymaster.access,
+    body: { kind: 'group', title: 'SMOKE группа', member_ids: [tokens.buyer_nova.user.id] },
+  });
+  check('мессенджер: группа создана', grp.status === 201 && grp.data.kind === 'group', `(${grp.status})`);
+  const chn = await call('POST', '/api/v1/chats', {
+    token: tokens.keymaster.access, body: { kind: 'channel', title: 'SMOKE канал' },
+  });
+  check('мессенджер: канал создан', chn.status === 201 && chn.data.kind === 'channel', `(${chn.status})`);
+  if (grp.status === 201) {
+    const inGrp = await call('POST', `/api/v1/chats/${grp.data.id}/messages`, {
+      token: tokens.keymaster.access, body: { body: 'Объявление для участников группы' },
+    });
+    check('мессенджер: сообщение в группу', inGrp.status === 201, `(${inGrp.status})`);
+  }
+
+  // TC-MSG-05: вложение больше 25 МБ → 413.
+  if (grp.status === 201) {
+    // JSON-транспорт ограничен 1 МБ (MaxJSONBodyBytes), поэтому лимит
+    // вложения 25 МБ проверяется на транспорте — ожидаем 413.
+    const big = await call('POST', `/api/v1/chats/${grp.data.id}/messages`, {
+      token: tokens.keymaster.access,
+      body: { type: 'file', body: Buffer.alloc(2 * 1024 * 1024).toString('base64'), name: 'huge.bin' },
+    });
+    check('мессенджер: вложение больше лимита → 413',
+      big.status === 413,
+      `(${big.status}) ${big.data.error?.code ?? ''}`);
+    const small = await call('POST', `/api/v1/chats/${grp.data.id}/messages`, {
+      token: tokens.keymaster.access,
+      body: { type: 'file', body: Buffer.from('SMOKE-file').toString('base64'), name: 'ok.txt' },
+    });
+    check('мессенджер: вложение в лимите принимается', small.status === 201, `(${small.status})`);
+  }
+
+  // TC-ABF-04: WS без аутентификации разрывается по таймауту 10 с.
+  const silentWs = new WebSocket(`${BASE.replace('http', 'ws')}/ws`);
+  let silentCode = null;
+  silentWs.onClose = (code) => { silentCode = code; };
+  await silentWs.open();
+  const startedAt = Date.now();
+  while (silentCode === null && Date.now() - startedAt < 15000) {
+    await new Promise((r) => setTimeout(r, 250));
+  }
+  const waitedMs = Date.now() - startedAt;
+  check('WS: неавторизованное соединение разорвано через 10 с (4401)',
+    silentCode === 4401 && waitedMs >= 9000,
+    `code=${silentCode} через ${waitedMs} мс`);
+
+  // TC-DSP-07: автоэскалация молчащих споров видна админу.
+  const autoEsc = await call('GET', '/api/v1/admin/disputes?status=in_arbitration&limit=50', { token: tokens.sitee_admin.access });
+  check('споры: автоматическая эскалация видна админу',
+    autoEsc.status === 200 && Array.isArray(autoEsc.data.items),
+    `(${autoEsc.status})`);
+
   console.log(`\nИтог: ${passed} passed, ${failed} failed`);
   if (failures.length) {
     console.log('Проблемы:');

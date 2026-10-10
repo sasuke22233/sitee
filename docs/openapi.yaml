@@ -103,6 +103,7 @@ paths:
               schema: { $ref: '#/components/schemas/Enrollment' }
         '400': { $ref: '#/components/responses/ValidationError' }
         '409': { $ref: '#/components/responses/ConflictError' }
+        '413': { $ref: '#/components/responses/PayloadTooLarge' }
         '429': { $ref: '#/components/responses/RateLimited' }
 
   /auth/verify-contact:
@@ -2184,6 +2185,20 @@ components:
       content:
         application/json:
           schema: { $ref: '#/components/schemas/Error' }
+    PayloadTooLarge:
+      description: 'Тело запроса или вложение превышает допустимый размер'
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              error:
+                type: object
+                properties:
+                  code: { type: string, enum: [PAYLOAD_TOO_LARGE, ATTACHMENT_TOO_LARGE] }
+                  message: { type: string }
+                  status: { type: integer, enum: [413] }
+                  request_id: { type: string }
     ConflictError:
       description: Конфликт состояния
       content:

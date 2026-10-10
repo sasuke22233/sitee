@@ -12,8 +12,14 @@ export const store = {
     }
   },
   set tokens(value) {
-    if (value) localStorage.setItem(TOKEN_KEY, JSON.stringify(value));
-    else localStorage.removeItem(TOKEN_KEY);
+    // В iframe/sandbox localStorage может быть недоступен: падать нельзя,
+    // иначе boot останавливается на сплэше («превью как будто не загружено»).
+    try {
+      if (value) localStorage.setItem(TOKEN_KEY, JSON.stringify(value));
+      else localStorage.removeItem(TOKEN_KEY);
+    } catch {
+      /* ignore */
+    }
   },
   get geo() {
     try {
@@ -23,8 +29,12 @@ export const store = {
     }
   },
   set geo(value) {
-    if (value) localStorage.setItem(GEO_KEY, JSON.stringify(value));
-    else localStorage.removeItem(GEO_KEY);
+    try {
+      if (value) localStorage.setItem(GEO_KEY, JSON.stringify(value));
+      else localStorage.removeItem(GEO_KEY);
+    } catch {
+      /* ignore */
+    }
   },
 };
 

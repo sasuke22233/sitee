@@ -87,12 +87,19 @@ export function ledgerError(errCode) {
 export function readBody(req, limit = 1 << 20) {
   return new Promise((resolve, reject) => {
     let size = 0;
+    let tooBig = false;
     const chunks = [];
     req.on('data', (chunk) => {
+      if (tooBig) return;
       size += chunk.length;
       if (size > limit) {
-        reject(bad('тело запроса слишком большое'));
-        req.destroy();
+        // 413 (как httpx.MaxBytesReader в Go) + дренаж остатка, чтобы клиент
+        // получил ответ, а не ECONNRESET.
+        tooBig = true;
+        chunks.length = 0;
+        reject(new ApiError(413, 'PAYLOAD_TOO_LARGE',
+          `тело запроса больше ${Math.round(limit / 1024 / 1024)} МБ`));
+        req.resume();
         return;
       }
       chunks.push(chunk);

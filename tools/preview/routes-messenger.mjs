@@ -2,7 +2,7 @@
 // Соответствует docs/api.md §8, docs/security.md §4 (E2EE) и FR-MSG-*.
 import * as C from './crypto.mjs';
 import {
-  bad, conflict, forbidden, notFound, unprocessable, tooMany,
+  ApiError, bad, conflict, forbidden, notFound, unprocessable, tooMany,
   ok, created, paginate, truncate, chatDto, messageDto,
   requireAuth, audit, notify, push, pushMany, allow,
 } from './lib.mjs';
@@ -199,6 +199,14 @@ export function messengerRoutes(ctx) {
     const b = r.body ?? {};
     const type = String(b.type ?? 'text');
     if (!['text', 'file', 'image', 'gift', 'system'].includes(type)) throw bad('некорректный тип сообщения');
+    // FR-MSG-06: вложение до 25 МБ — измеряем раскодированный размер base64.
+    if (type === 'file' || type === 'image') {
+      const payload = String(b.body_ct ?? b.body ?? '');
+      if (!payload) throw bad('вложение пустое');
+      if (Buffer.from(payload, 'base64').length > 25 * 1024 * 1024) {
+        throw new ApiError(413, 'ATTACHMENT_TOO_LARGE', 'вложение больше 25 МБ');
+      }
+    }
     if (type === 'system' && !['moderator', 'superadmin', 'arbiter'].includes(auth.user.role)) {
       throw forbidden('FORBIDDEN', 'системные сообщения создаёт только администрация');
     }

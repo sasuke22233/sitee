@@ -319,6 +319,7 @@ attach(server, hub, {
       void perUser;
       user = auth.user;
       conn.userId = user.id;
+      conn.authenticated = true; // снимаем auth-таймаут (FR-ABF-06)
       hub.register(user.id, conn);
       authenticated = true;
       const unread = L.userDto(ctx, user).unread?.chats ?? 0;

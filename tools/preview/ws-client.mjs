@@ -39,6 +39,7 @@ export class WebSocket {
     this.frames = [];
     this.waiters = [];
     this.onFrame = null;
+    this.onClose = null;
     this.opened = false;
     this.closed = false;
   }
@@ -88,6 +89,7 @@ export class WebSocket {
         this.closed = true;
         for (const w of this.waiters) w.reject(new Error('ws closed'));
         this.waiters = [];
+        if (this.onClose) this.onClose(this.closeCode ?? null, this.closeReason ?? '');
       });
     });
   }
@@ -115,7 +117,10 @@ export class WebSocket {
       this.buffer = this.buffer.slice(offset + len);
       if (opcode === OP.CLOSE) {
         this.closed = true;
+        this.closeCode = len >= 2 ? payload.readUInt16BE(0) : null;
+        this.closeReason = len > 2 ? payload.slice(2).toString('utf8') : '';
         this.socket.end();
+        if (this.onClose) this.onClose(this.closeCode, this.closeReason);
         return;
       }
       if (opcode === OP.PING) {

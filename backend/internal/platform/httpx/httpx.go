@@ -64,6 +64,11 @@ func Unprocessable(code, msg string) *APIError {
 	return &APIError{Code: code, Message: msg, Status: http.StatusUnprocessableEntity}
 }
 
+// PayloadTooLarge — 413: тело/вложение превышает допустимый размер.
+func PayloadTooLarge(code, msg string) *APIError {
+	return &APIError{Code: code, Message: msg, Status: http.StatusRequestEntityTooLarge}
+}
+
 func Locked(msg string, retryAfter time.Duration) *APIError {
 	return &APIError{Code: "LOCKED", Message: msg, Status: http.StatusLocked,
 		RetryAfter: int(retryAfter.Seconds())}

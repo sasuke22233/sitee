@@ -29,6 +29,7 @@
 | 403 | `FORBIDDEN`, `TOTP_STEP2_REQUIRED`, `GEO_BLOCKED`, `ACCOUNT_RESTRICTED`, `2FA_NOT_ENROLLED` | Недостаточно прав/факторов |
 | 404 | `NOT_FOUND` | Объект не существует **или** не виден (без раскрытия) |
 | 409 | `CONFLICT`, `INVALID_TRANSITION`, `ALREADY_USED`, `IDEMPOTENCY_CONFLICT` | Состояние не позволяет |
+| 413 | `PAYLOAD_TOO_LARGE`, `ATTACHMENT_TOO_LARGE` | Тело > 1 МБ (JSON) или вложение > 25 МБ |
 | 422 | `INSUFFICIENT_FUNDS`, `STOCK_EMPTY`, `LIMIT_EXCEEDED`, `RENT_REQUIRED` | Бизнес-отказ |
 | 423 | `LOCKED` | Лок после брутфорса (`retry_after`) |
 | 429 | `RATE_LIMITED` | Превышен лимит (`Retry-After`) |
@@ -302,7 +303,9 @@ POST /api/v1/disputes/{id}/appeal  { "reason":"Арбитр не учёл пун
 рассматривается апелляция, статус спора — `appeal`, а исполнение решений `refund_*` и
 `partial` приостановлено: средства остаются на эскроу до решения старшего арбитра
 (`execution_suspended: true`). Повторная апелляция по тому же спору невозможна.
-**Маскировка (FR-DSP-03)** реализуется на сервере: в ответах не-арбитру поля `id`, `nickname`,
+**Вложения (FR-MSG-06): тип `file`/`image`, лимит 25 МБ на файл (превышение → 413 `ATTACHMENT_TOO_LARGE`); текст ≤ 4096 символов. JSON-транспорт ограничен 1 МБ (`PAYLOAD_TOO_LARGE`) — большие файлы отдаются отдельным каналом загрузки, а в API передаётся ссылка на хранилище.
+
+Маскировка (FR-DSP-03)** реализуется на сервере: в ответах не-арбитру поля `id`, `nickname`,
 `avatar`, `country`, `city` второй стороны **отсутствуют**; вместо них — `visible_as`.
 Арбитр получает `reveal: true` и полные данные + запись в аудит (`dispute.reveal`).
 

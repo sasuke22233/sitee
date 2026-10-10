@@ -71,7 +71,7 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: ${{ env.NODE_VERSION }}
-      - name: smoke прототипа (133 проверки)
+      - name: smoke прототипа (142 проверки)
         run: |
           cd tools/preview
           npm install --no-audit --no-fund --omit=dev

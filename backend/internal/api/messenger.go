@@ -3,6 +3,7 @@ package api
 import (
 	"crypto/hmac"
 	"crypto/sha256"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -527,6 +528,9 @@ func (s *Server) handleListMessages(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
+// MaxAttachmentBytes — лимит вложения в сообщении (FR-MSG-06: фото/видео/файл до 25 МБ).
+const MaxAttachmentBytes = 25 << 20
+
 type sendMessageRequest struct {
 	ClientMsgID string         `json:"client_msg_id"`
 	Type        string         `json:"type"`
@@ -582,6 +586,27 @@ func (s *Server) postMessage(u *store.User, chatID string, req sendMessageReques
 	plain := req.Body
 	if utf8len(plain) > 4096 {
 		return nil, httpx.BadRequest("сообщение длиннее 4096 символов", nil)
+	}
+	if msgType == "attachment" {
+		// Вложение приходит base64 в body_ct (E2EE) или body; считаем по раскодированному размеру.
+		payload := req.BodyCT
+		if payload == "" {
+			payload = req.Body
+		}
+		if payload == "" {
+			return nil, httpx.BadRequest("вложение пустое", nil)
+		}
+		decoded, err := base64.StdEncoding.DecodeString(payload)
+		if err != nil {
+			decoded, err = base64.RawURLEncoding.DecodeString(payload)
+			if err != nil {
+				return nil, httpx.BadRequest("некорректный base64 вложения", nil)
+			}
+		}
+		if len(decoded) > MaxAttachmentBytes {
+			return nil, httpx.PayloadTooLarge("ATTACHMENT_TOO_LARGE",
+				fmt.Sprintf("вложение больше %d МБ", MaxAttachmentBytes>>20))
+		}
 	}
 	if !req.E2EE && plain == "" && req.BodyCT == "" {
 		return nil, httpx.BadRequest("пустое сообщение", nil)

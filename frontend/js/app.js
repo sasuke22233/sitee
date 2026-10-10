@@ -169,7 +169,11 @@ function wireChrome() {
     shops.setQuery(searchInput.value.trim());
     navigate('#/shops', true);
   });
-  searchInput.value = sessionStorage.getItem('sitee.q') ?? '';
+  try {
+    searchInput.value = sessionStorage.getItem('sitee.q') ?? '';
+  } catch {
+    /* ignore */
+  }
 
   document.getElementById('bell-btn')?.addEventListener('click', () => {
     if (!S.me) {
@@ -219,6 +223,16 @@ function bindLiveEvents(navigateRef) {
 // Загрузка
 // ---------------------------------------------------------------------------
 async function boot() {
+  try {
+    await start();
+  } catch (err) {
+    console.error('[sitee] boot failed', err);
+    mount(view, empty('⚠️', 'Не удалось запустить SITEE',
+      `${describeError(err)} Обновите страницу или откройте инструмент заново.`));
+  }
+}
+
+async function start() {
   wireChrome();
   mount(view, spinner('Запускаем SITEE…'));
   // Скрипт Telegram подтягиваем в фоне: старт интерфейса от него не зависит.

@@ -30,7 +30,7 @@ function encodeFrame(opcode, payload) {
 }
 
 export class WSConnection {
-  constructor(socket, request) {
+  constructor(socket, request, { authDeadlineMs = 10_000, readDeadlineMs = 120_000 } = {}) {
     this.socket = socket;
     this.request = request;
     this.userId = null;
@@ -38,16 +38,35 @@ export class WSConnection {
     this.buffer = Buffer.alloc(0);
     this.closed = false;
     this.connectedAt = Date.now();
+    this.lastReadAt = Date.now();
     this.sent = 0;
     this.received = 0;
     this.onMessage = null;
     this.onClose = null;
-    socket.on('data', (chunk) => this.#onData(chunk));
+    this.authenticated = false;
+    // FR-ABF-06: обязательная аутентификация в первые 10 с после подключения.
+    this.authDeadlineMs = authDeadlineMs;
+    // FR-ABF-06: read-deadline — разрыв «молчащих» соединений (защита от slowloris).
+    this.readDeadlineMs = readDeadlineMs;
+    socket.on('data', (chunk) => {
+      this.lastReadAt = Date.now();
+      this.#onData(chunk);
+    });
     socket.on('error', () => this.close(CLOSE.GOING_AWAY, 'socket error'));
     socket.on('close', () => {
       this.closed = true;
       if (this.onClose) this.onClose();
     });
+    this.authTimer = setTimeout(() => {
+      if (this.closed || this.authenticated) return;
+      this.close(CLOSE.UNAUTHENTICATED, 'auth timeout');
+    }, this.authDeadlineMs);
+    this.readTimer = setInterval(() => {
+      if (this.closed) return;
+      if (this.authenticated && Date.now() - this.lastReadAt > this.readDeadlineMs) {
+        this.close(CLOSE.POLICY, 'read timeout');
+      }
+    }, 5000);
     this.pingTimer = setInterval(() => {
       if (this.closed) return;
       try {
@@ -132,6 +151,8 @@ export class WSConnection {
       this.socket.end();
     } catch { /* сокет уже закрыт */ }
     clearInterval(this.pingTimer);
+    clearTimeout(this.authTimer);
+    clearInterval(this.readTimer);
     this.closed = true;
     if (this.onClose) this.onClose();
   }
@@ -181,7 +202,7 @@ export class Hub {
 }
 
 // attach — обработка HTTP-upgrade на пути /ws.
-export function attach(server, hub, { onConnection, maxPerIp = 5 }) {
+export function attach(server, hub, { onConnection, maxPerIp = 5, authDeadlineMs = 10_000, readDeadlineMs = 120_000 } = {}) {
   const perIp = new Map();
   server.on('upgrade', (req, socket) => {
     const url = new URL(req.url, 'http://localhost');
@@ -210,7 +231,7 @@ export function attach(server, hub, { onConnection, maxPerIp = 5 }) {
       'Connection: Upgrade\r\n' +
       `Sec-WebSocket-Accept: ${accept}\r\n\r\n`,
     );
-    const conn = new WSConnection(socket, req);
+    const conn = new WSConnection(socket, req, { authDeadlineMs, readDeadlineMs });
     conn.remoteIp = ip;
     conn.onClose = () => {
       perIp.set(ip, Math.max(0, (perIp.get(ip) ?? 1) - 1));
