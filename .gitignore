@@ -1,0 +1,16 @@
+# runtime data & secrets
+.env
+.env.*
+!.env.example
+data/
+*.sqlite
+*.db
+
+# build artifacts
+/backend/siteed
+/crypto-core/target/
+dist/
+node_modules/
+
+# logs
+*.log

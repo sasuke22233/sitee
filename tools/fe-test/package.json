@@ -1,0 +1,17 @@
+{
+  "name": "sitee-fe-test",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Headless-прогон Telegram Mini App SITEE в jsdom против preview-сервера: ловит ошибки исполнения, 404 по API и падения экранов.",
+  "scripts": {
+    "test": "node run.mjs",
+    "install:dev": "npm install --no-audit --no-fund"
+  },
+  "devDependencies": {
+    "jsdom": "^25.0.1"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}
