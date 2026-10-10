@@ -267,6 +267,7 @@ export function tokenHash(token) {
 const B58_ALPHABET = '123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz';
 
 export function base58Encode(buf) {
+  if (!buf || buf.length === 0) return '';
   let num = BigInt('0x' + buf.toString('hex'));
   let out = '';
   while (num > 0n) {

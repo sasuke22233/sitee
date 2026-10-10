@@ -71,23 +71,23 @@ fn gctr(rk: &[u32; ROUND_KEYS], icb: &[u8; 16], data: &[u8]) -> Vec<u8> {
     out
 }
 
-/// Предварительный счётчик J0 (SP 800-38D §5.2.1.1).
-fn j0(h: u128, iv: &[u8]) -> [u8; 16] {
-    if iv.len() == 12 {
-        let mut out = [0u8; 16];
-        out[..12].copy_from_slice(iv);
-        out[15] = 1;
-        out
-    } else {
-        let pad = (16 - iv.len() % 16) % 16;
-        let mut buf = Vec::with_capacity(iv.len() + pad);
-        buf.extend_from_slice(iv);
-        buf.extend(std::iter::repeat(0u8).take(pad));
-        let s = ghash(h, &buf);
-        let mut out = s.to_be_bytes();
-        out[15] = 1;
-        out
+/// Предварительный счётчик J0 для 96-битного nonce (SP 800-38D §5.2.1.1):
+/// `nonce ‖ 0^31 ‖ 1`.
+///
+/// Нестандартная длина IV намеренно не поддерживается: в SITEE nonce всегда
+/// 12 случайных байт (формат конверта), а сборка J0 через GHASH у распространённых
+/// реализаций расходится с формулой NIST — тихо неверный тег опаснее отказа.
+fn j0(iv: &[u8]) -> Result<[u8; 16]> {
+    if iv.len() != 12 {
+        return Err(Error::Other(format!(
+            "gcm: nonce должен быть 12 байт, получено {}",
+            iv.len()
+        )));
     }
+    let mut out = [0u8; 16];
+    out[..12].copy_from_slice(&iv[..12]);
+    out[15] = 1;
+    Ok(out)
 }
 
 /// Подблок S = GHASH(H, A‖pad‖C‖pad‖[len(A)]64‖[len(C)]64).
@@ -107,17 +107,22 @@ fn s_block(h: u128, aad: &[u8], ct: &[u8]) -> u128 {
 }
 
 /// Шифрование: возвращает `ciphertext || tag(16)`.
-pub fn aes256_gcm_encrypt(key: &[u8; 32], iv: &[u8], plaintext: &[u8], aad: &[u8]) -> Vec<u8> {
+pub fn aes256_gcm_encrypt(
+    key: &[u8; 32],
+    iv: &[u8],
+    plaintext: &[u8],
+    aad: &[u8],
+) -> Result<Vec<u8>> {
     let rk = key_expansion(key);
     let h = u128::from_be_bytes(encrypt_block(&rk, &[0u8; 16]));
-    let j0 = j0(h, iv);
+    let j0 = j0(iv)?;
     let ct = gctr(&rk, &inc32_of(&j0), plaintext);
     let s = s_block(h, aad, &ct);
     let tag = gctr(&rk, &j0, &s.to_be_bytes());
     let mut out = Vec::with_capacity(ct.len() + 16);
     out.extend_from_slice(&ct);
     out.extend_from_slice(&tag);
-    out
+    Ok(out)
 }
 
 /// Расшифровка с проверкой тега. Ошибка `Integrity`, если данные подменены.
@@ -132,7 +137,7 @@ pub fn aes256_gcm_decrypt(
     }
     let rk = key_expansion(key);
     let h = u128::from_be_bytes(encrypt_block(&rk, &[0u8; 16]));
-    let j0 = j0(h, iv);
+    let j0 = j0(iv)?;
     let split = ct_with_tag.len() - 16;
     let ct = &ct_with_tag[..split];
     let tag = &ct_with_tag[split..];
@@ -156,10 +161,18 @@ mod tests {
     use crate::to_hex;
 
     #[test]
+    fn nonce_must_be_12_bytes() {
+        // Нестандартная длина nonce не поддерживается намеренно.
+        assert!(aes256_gcm_encrypt(&[0u8; 32], &[0u8; 16], b"x", b"").is_err());
+        assert!(aes256_gcm_encrypt(&[0u8; 32], &[0u8; 8], b"x", b"").is_err());
+        assert!(aes256_gcm_decrypt(&[0u8; 32], &[0u8; 16], &[0u8; 32], b"").is_err());
+    }
+
+    #[test]
     fn nist_gcm_zero_vector() {
         // AES-256, ключ 0^32, IV 0^12, пустые P и A → тег 58e2fcce… (TC.2 класса
         // «пустые данные»); сверено с node crypto в CI-векторах.
-        let out = aes256_gcm_encrypt(&[0u8; 32], &[0u8; 12], b"", b"");
+        let out = aes256_gcm_encrypt(&[0u8; 32], &[0u8; 12], b"", b"").unwrap();
         assert_eq!(to_hex(&out), "530f8afbc74536b9a963b4f1c4cb738b");
     }
 
@@ -169,8 +182,8 @@ mod tests {
         let iv = [3u8; 12];
         let pt = b"sitee: секретное сообщение чата";
         let aad = b"msg:ord_1";
-        let blob = aes256_gcm_encrypt(&key, &iv, pt, aad);
-        assert_eq!(aes256_gcm_decrypt(&key, &iv, &blob, aad).unwrap(), pt);
+        let blob = aes256_gcm_encrypt(&key, &iv, pt, aad).unwrap();
+        assert_eq!(aes256_gcm_decrypt(&key, &iv, &blob, aad).unwrap().as_slice(), pt);
         let mut broken = blob.clone();
         broken[0] ^= 1;
         assert!(aes256_gcm_decrypt(&key, &iv, &broken, aad).is_err());

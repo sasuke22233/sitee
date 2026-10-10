@@ -83,7 +83,8 @@ Go обращается сюда при `CRYPTO_CORE_URL=http://crypto-core:8091
 
 ## Тесты
 
-`cargo test` прогоняет ~120 проверок: RFC/NIST векторы, round-trip каждого
-примитива, tamper-detection GCM, RFC 6238 (TOTP), RFC 8032 (ed25519, тесты 1 и
-2), детерминизм Solana-адресов, форматы safety/audit/alias и сквозная проверка
-«Rust ⇄ Node» для конверта и слепого индекса.
+`cargo test` прогоняет 70 тестов: RFC/NIST векторы (SHA, HMAC, HKDF, PBKDF2,
+AES-256-GCM), round-trip каждого примитива, tamper-detection, RFC 6238 (TOTP),
+RFC 8032 (ed25519, тесты 1 и 2), детерминизм Solana-адресов, форматы
+safety/audit/alias и сквозные значения «Rust ⇄ Node» для конверта и слепого
+индекса.

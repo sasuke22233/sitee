@@ -202,12 +202,14 @@ pub fn compact_u16(mut v: u16, out: &mut Vec<u8>) {
     }
 }
 
-/// Длина компактного u16 в байтах.
+/// Длина компактного u16 в байтах (1, 2 или 3).
 pub fn compact_u16_len(v: u16) -> usize {
     if v < 0x80 {
         1
-    } else {
+    } else if v < 0x4000 {
         2
+    } else {
+        3
     }
 }
 
@@ -285,6 +287,12 @@ mod tests {
         assert_eq!(out, vec![0x00, 0x7f, 0x80, 0x01, 0xac, 0x02]);
         assert_eq!(compact_u16_len(127), 1);
         assert_eq!(compact_u16_len(128), 2);
+        assert_eq!(compact_u16_len(300), 2);
+        assert_eq!(compact_u16_len(16384), 3);
+        // Кодирование остаётся обратимым: декодируем обратно.
+        let mut enc = Vec::new();
+        compact_u16(20000, &mut enc);
+        assert_eq!(enc, vec![0xa0, 0x9c, 0x01]);
     }
 
     #[test]
@@ -327,7 +335,11 @@ mod tests {
         assert!(check_whitelist(&strict, "9WzDXwBbmkg8ZTbNMqUxvQRAyrZzDsGYdLVL9zYtAWWM").is_ok());
         assert!(check_whitelist(&strict, "11111111111111111111111111111111").is_err());
         assert!(check_whitelist(&Default::default(), "любой").is_ok());
-        assert_eq!(acc.address.len(), 44);
+        // Точное значение: base58(ed25519-ключ из HKDF), сверено с Node-зеркалом.
+        assert_eq!(
+            acc.address,
+            "3H5yyfS9nm9oZiLzU2rkYbbd1e4HRKS8dUStMJGuLhNv"
+        );
         assert!(is_valid_address(&acc.address));
     }
 

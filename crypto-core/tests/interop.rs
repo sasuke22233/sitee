@@ -90,12 +90,12 @@ fn aes256_gcm_matches_node() {
     let iv = hex12("000102030405060708090a0b");
     let aad = b"msg:ord_1";
     let pt = b"sitee e2ee";
-    let blob = gcm::aes256_gcm_encrypt(&key, &iv, pt, aad);
+    let blob = gcm::aes256_gcm_encrypt(&key, &iv, pt, aad).unwrap();
     assert_eq!(
         to_hex(&blob),
         "c3453c7b3e7752cc8928ba79fe50cc1d8574f7d8687662269f06"
     );
-    assert_eq!(gcm::aes256_gcm_decrypt(&key, &iv, &blob, aad).unwrap(), pt);
+    assert_eq!(gcm::aes256_gcm_decrypt(&key, &iv, &blob, aad).unwrap().as_slice(), pt);
 }
 
 #[test]

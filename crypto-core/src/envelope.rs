@@ -85,7 +85,7 @@ impl Core {
         let dek = self.domain_key(domain);
         let nonce = nonce12();
         let aad = format!("{domain}:{object_id}");
-        let body = gcm::aes256_gcm_encrypt(&dek, &nonce, plaintext, aad.as_bytes());
+        let body = gcm::aes256_gcm_encrypt(&dek, &nonce, plaintext, aad.as_bytes())?;
         let mut env = Vec::with_capacity(HEADER_LEN + body.len());
         env.push(ENVELOPE_VERSION);
         env.extend_from_slice(&self.key_id(domain));
