@@ -1,6 +1,7 @@
 // Точка входа Telegram Mini App SITEE: роутер по hash, шапка поиска, нижняя навигация, live-обновления.
 import { api, live, store as localStore, tg } from './api.js';
 import { S, loadConfig, loadReference, loadMe, bindLive, refreshUnread, setTokens, isStaff } from './state.js';
+import { ensureTelegram } from './api.js';
 import { h, mount, toast, describeError, spinner, empty } from './ui.js';
 import * as auth from './views/auth.js';
 import * as shops from './views/shops.js';
@@ -209,6 +210,8 @@ function bindLiveEvents(navigateRef) {
 async function boot() {
   wireChrome();
   mount(view, spinner('Запускаем SITEE…'));
+  // Скрипт Telegram подтягиваем в фоне: старт интерфейса от него не зависит.
+  void ensureTelegram();
   bindLiveEvents(navigate);
   try {
     await loadConfig();

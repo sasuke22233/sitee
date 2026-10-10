@@ -97,41 +97,85 @@ export const api = {
 // ---------------------------------------------------------------------------
 // Telegram WebApp
 // ---------------------------------------------------------------------------
-export const tg = (() => {
-  const w = window.Telegram?.WebApp;
-  // Вне Telegram (обычный браузер, preview-стенд) все методы — безопасные заглушки:
-  // иначе первый же toast упадёт с TypeError и приложение покажет пустой экран.
-  if (!w) {
-    return {
-      available: false, raw: null, user: null, initData: '',
-      haptic() {}, openInvoice: async () => 'failed',
-    };
-  }
-  try {
-    w.ready();
-    w.expand();
-  } catch { /* вне Telegram */ }
-  return {
-    available: true,
-    raw: w,
-    user: w.initDataUnsafe?.user ?? null,
-    initData: w.initData ?? '',
-    haptic(kind = 'light') {
-      try {
-        w.HapticFeedback?.impactOccurred(kind);
-      } catch { /* игнорируем */ }
-    },
-    openInvoice(payload) {
-      return new Promise((resolve) => {
+// Скрипт telegram.org НЕ подключён в index.html: если Telegram недоступен из
+// сети пользователя (или открыт обычный браузер), браузер висел бы на нём
+// десятками секунд и не запускал приложение. Грузим его в фоне с таймаутом,
+// а до его появления работаем на безопасных заглушках.
+const TELEGRAM_SRC = 'https://telegram.org/js/telegram-web-app.js';
+const TELEGRAM_TIMEOUT_MS = 3000;
+
+let telegramWebApp = window.Telegram?.WebApp ?? null;
+let telegramReady = Promise.resolve(telegramWebApp);
+
+export function ensureTelegram(timeoutMs = TELEGRAM_TIMEOUT_MS) {
+  if (telegramWebApp || document.querySelector(`script[src="${TELEGRAM_SRC}"]`)) return telegramReady;
+  telegramReady = new Promise((resolve) => {
+    const script = document.createElement('script');
+    const timer = setTimeout(() => {
+      script.remove();
+      resolve(null);
+    }, timeoutMs);
+    script.src = TELEGRAM_SRC;
+    script.async = true;
+    script.onload = () => {
+      clearTimeout(timer);
+      telegramWebApp = window.Telegram?.WebApp ?? null;
+      if (telegramWebApp) {
         try {
-          w.openInvoice(payload, (status) => resolve(status));
-        } catch {
-          resolve('failed');
-        }
-      });
-    },
-  };
-})();
+          telegramWebApp.ready();
+          telegramWebApp.expand();
+        } catch { /* вне Telegram */ }
+      }
+      resolve(telegramWebApp);
+    };
+    script.onerror = () => {
+      clearTimeout(timer);
+      script.remove();
+      resolve(null);
+    };
+    document.head.appendChild(script);
+  });
+  return telegramReady;
+}
+
+// Прокси к WebApp: если он ещё не загружен, методы тихо выходят в заглушки,
+// поэтому интерфейс работает и без Telegram (preview, обычный браузер).
+function webApp() {
+  return telegramWebApp;
+}
+
+export const tg = {
+  get available() {
+    return !!webApp();
+  },
+  get raw() {
+    return webApp();
+  },
+  get user() {
+    return webApp()?.initDataUnsafe?.user ?? null;
+  },
+  get initData() {
+    return webApp()?.initData ?? '';
+  },
+  haptic(kind = 'light') {
+    try {
+      webApp()?.HapticFeedback?.impactOccurred(kind);
+    } catch { /* игнорируем */ }
+  },
+  openInvoice(payload) {
+    const w = webApp();
+    if (!w) return Promise.resolve('failed');
+    return new Promise((resolve) => {
+      try {
+        w.openInvoice(payload, (status) => resolve(status));
+      } catch {
+        resolve('failed');
+      }
+    });
+  },
+  // Принудительно подтянуть WebApp (например, перед открытием Stars-инвойса).
+  load: ensureTelegram,
+};
 
 // ---------------------------------------------------------------------------
 // WebSocket (WSS): live-обновления чатов, заказов, кошелька

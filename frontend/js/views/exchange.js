@@ -1,5 +1,5 @@
 // Вкладка «Обмен»: кошелёк, депозит SOL, обмен SOL⇄Stars, вывод, подарки и Telegram Stars.
-import { api, live, tg } from '../api.js';
+import { api, live, tg, ensureTelegram } from '../api.js';
 import { S } from '../state.js';
 import {
   h, mount, toast, describeError, spinner, empty, statusChip, dateTime, money,
@@ -278,6 +278,10 @@ function starsModal(show) {
 }
 
 async function confirmStars(invoice, purpose) {
+  // В TMA оплата идёт через openInvoice; вне Telegram (preview, обычный браузер)
+  // показываем инструкцию и ссылку. Скрипт Telegram догружается в фоне, поэтому
+  // ждём его здесь — до 3 секунд, и не больше.
+  await ensureTelegram();
   if (tg.available && invoice.payload) {
     const status = await tg.openInvoice(invoice.payload);
     if (status === 'paid') return true;
