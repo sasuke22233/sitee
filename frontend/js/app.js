@@ -3,13 +3,22 @@ import { api, live, store as localStore, tg } from './api.js';
 import { S, loadConfig, loadReference, loadMe, bindLive, refreshUnread, setTokens, isStaff } from './state.js';
 import { ensureTelegram } from './api.js';
 import { h, mount, toast, describeError, spinner, empty } from './ui.js';
-import * as auth from './views/auth.js';
-import * as shops from './views/shops.js';
-import * as orders from './views/orders.js';
-import * as chats from './views/chats.js';
-import * as exchange from './views/exchange.js';
-import * as profile from './views/profile.js';
-import * as admin from './views/admin.js';
+// Модули экранов загружаются по требованию: покупатель не тянет админку (64 КБ),
+// продавец — подарки и т.д. Старт остаётся на api/state/ui (≈32 КБ).
+const modules = {};
+const loaders = {
+  auth: () => import('./views/auth.js'),
+  shops: () => import('./views/shops.js'),
+  orders: () => import('./views/orders.js'),
+  chats: () => import('./views/chats.js'),
+  exchange: () => import('./views/exchange.js'),
+  profile: () => import('./views/profile.js'),
+  admin: () => import('./views/admin.js'),
+};
+async function loadView(name) {
+  if (!modules[name]) modules[name] = await loaders[name]();
+  return modules[name];
+}
 
 const view = document.getElementById('view');
 const tabbar = document.getElementById('tabbar');
@@ -26,27 +35,27 @@ const TABS = [
 ];
 
 const ROUTES = [
-  { pattern: /^welcome$/, render: auth.welcome, public: true },
-  { pattern: /^login$/, render: auth.login, public: true },
-  { pattern: /^register$/, render: auth.register, public: true },
-  { pattern: /^shops$/, render: shops.feed, public: true },
-  { pattern: /^shop\/([^/]+)$/, render: shops.shop, public: true, params: ['id'] },
-  { pattern: /^product\/([^/]+)$/, render: shops.product, public: true, params: ['id'] },
-  { pattern: /^orders$/, render: orders.list },
-  { pattern: /^order\/([^/]+)$/, render: orders.detail, params: ['id'] },
-  { pattern: /^chats$/, render: chats.chats },
-  { pattern: /^chat\/([^/]+)$/, render: chats.chat, params: ['id'] },
-  { pattern: /^disputes$/, render: chats.disputes },
-  { pattern: /^dispute\/([^/]+)$/, render: chats.dispute, params: ['id'] },
-  { pattern: /^exchange$/, render: exchange.exchange },
-  { pattern: /^profile$/, render: profile.profile },
-  { pattern: /^profile\/2fa$/, render: profile.security },
-  { pattern: /^profile\/sessions$/, render: profile.sessions },
-  { pattern: /^profile\/notifications$/, render: profile.notifications },
-  { pattern: /^profile\/shops$/, render: profile.myShops },
-  { pattern: /^profile\/shop\/([^/]+)$/, render: profile.shopAdmin, params: ['id'] },
-  { pattern: /^admin$/, render: admin.admin, staff: true, params: [], section: 'dashboard' },
-  { pattern: /^admin\/([^/]+)$/, render: admin.admin, staff: true, params: ['section'] },
+  { pattern: /^welcome$/, view: 'auth.welcome', public: true },
+  { pattern: /^login$/, view: 'auth.login', public: true },
+  { pattern: /^register$/, view: 'auth.register', public: true },
+  { pattern: /^shops$/, view: 'shops.feed', public: true },
+  { pattern: /^shop\/([^/]+)$/, view: 'shops.shop', public: true, params: ['id'] },
+  { pattern: /^product\/([^/]+)$/, view: 'shops.product', public: true, params: ['id'] },
+  { pattern: /^orders$/, view: 'orders.list' },
+  { pattern: /^order\/([^/]+)$/, view: 'orders.detail', params: ['id'] },
+  { pattern: /^chats$/, view: 'chats.chats' },
+  { pattern: /^chat\/([^/]+)$/, view: 'chats.chat', params: ['id'] },
+  { pattern: /^disputes$/, view: 'chats.disputes' },
+  { pattern: /^dispute\/([^/]+)$/, view: 'chats.dispute', params: ['id'] },
+  { pattern: /^exchange$/, view: 'exchange.exchange' },
+  { pattern: /^profile$/, view: 'profile.profile' },
+  { pattern: /^profile\/2fa$/, view: 'profile.security' },
+  { pattern: /^profile\/sessions$/, view: 'profile.sessions' },
+  { pattern: /^profile\/notifications$/, view: 'profile.notifications' },
+  { pattern: /^profile\/shops$/, view: 'profile.myShops' },
+  { pattern: /^profile\/shop\/([^/]+)$/, view: 'profile.shopAdmin', params: ['id'] },
+  { pattern: /^admin$/, view: 'admin.admin', staff: true, params: [], section: 'dashboard' },
+  { pattern: /^admin\/([^/]+)$/, view: 'admin.admin', staff: true, params: ['section'] },
 ];
 
 let currentHash = '';
@@ -104,7 +113,9 @@ async function render() {
   window.scrollTo(0, 0);
   mount(view, spinner());
   try {
-    await route.render(view, { navigate }, params);
+    const [moduleName, exportName] = route.view.split('.');
+    const render = await loadView(moduleName);
+    await render[exportName](view, { navigate }, params);
   } catch (err) {
     console.error(err);
     mount(view, empty('⚠️', 'Ошибка экрана', describeError(err)),

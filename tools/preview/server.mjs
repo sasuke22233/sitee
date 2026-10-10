@@ -6,6 +6,8 @@
 // Запуск:  npm start            (или: node server.mjs)
 // Адрес:   0.0.0.0:8080         (SITEED_ADDR)
 import http from 'node:http';
+import zlib from 'node:zlib';
+import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -105,6 +107,49 @@ const MIME = {
   '.map': 'application/json; charset=utf-8',
 };
 
+// ---------------------------------------------------------------------------
+// Сжатие и ETag: на медленном канале это решает — JS/CSS жмутся в ~4 раза,
+// а ETag даёт 304 вместо повторной загрузки неизменившихся файлов.
+// ---------------------------------------------------------------------------
+const TEXTUAL = new Set(['.html', '.js', '.mjs', '.css', '.json', '.svg', '.txt', '.map']);
+
+function negotiateEncoding(req) {
+  const accept = String(req.headers['accept-encoding'] ?? '');
+  if (accept.includes('gzip')) return 'gzip';
+  if (accept.includes('deflate')) return 'deflate';
+  return null;
+}
+
+function compress(body, encoding) {
+  if (!encoding || body.length < 1024) return { body, headers: {} };
+  const packed = encoding === 'gzip' ? zlib.gzipSync(body) : zlib.deflateSync(body);
+  // Сжимаем только если реально стало меньше.
+  if (packed.length >= body.length) return { body, headers: {} };
+  return { body: packed, headers: { 'Content-Encoding': encoding, Vary: 'Accept-Encoding' } };
+}
+
+function etag(body) {
+  // crc32 быстрее sha1 и достаточно для проверки свежести статики.
+  let crc = ~0;
+  for (let i = 0; i < body.length; i += 1) {
+    crc ^= body[i];
+    for (let bit = 0; bit < 8; bit += 1) crc = (crc >>> 1) ^ (0xedb88320 & -(crc & 1));
+  }
+  return `W/"${body.length.toString(16)}-${((~crc) >>> 0).toString(36)}"`;
+}
+
+function sendJson(req, res, status, payload, extraHeaders = {}) {
+  const text = typeof payload === 'string' ? payload : JSON.stringify(payload);
+  const { body, headers } = compress(Buffer.from(text), negotiateEncoding(req));
+  res.writeHead(status, {
+    'Content-Type': 'application/json; charset=utf-8',
+    'Content-Length': body.length,
+    ...headers,
+    ...extraHeaders,
+  });
+  res.end(body);
+}
+
 function serveStatic(req, res, pathname) {
   const rel = pathname === '/' ? 'index.html' : pathname.replace(/^\/+/, '');
   let file = path.resolve(FRONTEND_DIR, rel);
@@ -122,17 +167,26 @@ function serveStatic(req, res, pathname) {
     }
   }
   const ext = path.extname(file).toLowerCase();
-  const body = req.method === 'HEAD' ? Buffer.alloc(0) : fs.readFileSync(file);
-  const headers = {
+  const raw = fs.readFileSync(file);
+  const tag = etag(raw);
+  // ETag + 304: браузер не качает файл заново, если он не менялся.
+  if (req.headers['if-none-match'] === tag) {
+    res.writeHead(304, { ETag: tag, 'Cache-Control': 'no-cache' });
+    res.end();
+    return;
+  }
+  const { body, headers: compressed } = compress(raw, TEXTUAL.has(ext) ? negotiateEncoding(req) : null);
+  res.writeHead(200, {
     'Content-Type': MIME[ext] ?? 'application/octet-stream',
-    'Content-Length': req.method === 'HEAD' ? fs.statSync(file).size : body.length,
-    // html/js/css не кэшируем: preview отдаёт свежие файлы после каждой правки фронта.
+    'Content-Length': body.length,
+    ETag: tag,
+    // no-cache + ETag = «проверяй свежесть, но используй кэш при совпадении».
     'Cache-Control': ['.html', '.js', '.mjs', '.css'].includes(ext) ? 'no-cache' : 'public, max-age=300',
     // TMA открывается внутри webview Telegram — фреймы разрешаем.
     'Content-Security-Policy': "default-src 'self'; img-src 'self' data: blob:; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline' https://telegram.org; connect-src 'self' ws: wss: https://telegram.org; frame-ancestors *",
-  };
-  res.writeHead(200, headers);
-  res.end(body);
+    ...compressed,
+  });
+  res.end(req.method === 'HEAD' ? undefined : body);
 }
 
 // ---------------------------------------------------------------------------
@@ -160,13 +214,13 @@ const server = http.createServer(async (req, res) => {
   // Блокировка IP из админ-панели (FR-ABF-*).
   const ban = db.ipBans?.get(ip);
   if (ban && new Date(ban.until) > new Date()) {
-    L.send(res, 403, { error: { code: 'IP_BANNED', message: `IP заблокирован до ${ban.until}`, status: 403, request_id: requestId } });
+    sendJson(req, res, 403, { error: { code: 'IP_BANNED', message: `IP заблокирован до ${ban.until}`, status: 403, request_id: requestId } });
     return;
   }
 
   try {
     if (pathname === '/healthz') {
-      L.send(res, 200, { status: 'ok', version: VERSION, uptime_s: Math.round((Date.now() - stats.startedAt) / 1000) });
+      sendJson(req, res, 200, { status: 'ok', version: VERSION, uptime_s: Math.round((Date.now() - stats.startedAt) / 1000) });
       return;
     }
     if (pathname === '/readyz') {
@@ -203,7 +257,7 @@ const server = http.createServer(async (req, res) => {
         serveStatic(req, res, pathname);
         return;
       }
-      L.send(res, 404, { error: { code: 'NOT_FOUND', message: 'маршрут не найден', status: 404, request_id: requestId } });
+      sendJson(req, res, 404, { error: { code: 'NOT_FOUND', message: 'маршрут не найден', status: 404, request_id: requestId } });
       return;
     }
 
@@ -230,7 +284,7 @@ const server = http.createServer(async (req, res) => {
     const result = found.route.handler({ ctx, req, params: found.params, query: Object.fromEntries(url.searchParams), body, auth, ip });
     const status = result?.status ?? 200;
     const payload = result?.body ?? { status: 'ok' };
-    L.send(res, status, payload);
+    sendJson(req, res, status, payload);
   } catch (err) {
     stats.errors += 1;
     if (err instanceof L.ApiError && err.status >= 400 && err.status < 500) {
