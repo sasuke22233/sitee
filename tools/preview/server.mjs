@@ -122,15 +122,16 @@ function serveStatic(req, res, pathname) {
     }
   }
   const ext = path.extname(file).toLowerCase();
-  const body = fs.readFileSync(file);
-  res.writeHead(200, {
+  const body = req.method === 'HEAD' ? Buffer.alloc(0) : fs.readFileSync(file);
+  const headers = {
     'Content-Type': MIME[ext] ?? 'application/octet-stream',
-    'Content-Length': body.length,
+    'Content-Length': req.method === 'HEAD' ? fs.statSync(file).size : body.length,
     // html/js/css не кэшируем: preview отдаёт свежие файлы после каждой правки фронта.
     'Cache-Control': ['.html', '.js', '.mjs', '.css'].includes(ext) ? 'no-cache' : 'public, max-age=300',
     // TMA открывается внутри webview Telegram — фреймы разрешаем.
     'Content-Security-Policy': "default-src 'self'; img-src 'self' data: blob:; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline' https://telegram.org; connect-src 'self' ws: wss: https://telegram.org; frame-ancestors *",
-  });
+  };
+  res.writeHead(200, headers);
   res.end(body);
 }
 
@@ -198,7 +199,7 @@ const server = http.createServer(async (req, res) => {
 
     const found = match(req.method, pathname);
     if (!found) {
-      if (req.method === 'GET' && !pathname.startsWith('/api/') && pathname !== '/ws') {
+      if ((req.method === 'GET' || req.method === 'HEAD') && !pathname.startsWith('/api/') && pathname !== '/ws') {
         serveStatic(req, res, pathname);
         return;
       }
