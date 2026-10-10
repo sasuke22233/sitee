@@ -54,7 +54,13 @@ cd crypto-core && cargo test && cargo run --release -- --listen 127.0.0.1:8091
 Вариант A — только фронтенд + preview-сервер (не требует Go/Rust):
 
 ```bash
-cd tools/preview && npm install --omit=dev && npm start     # http://0.0.0.0:8080
+cd tools/preview && npm start                        # http://0.0.0.0:8080
+
+# Зависимостей нет — npm install не нужен.
+# npm start поднимает супервизор: он держит сервер живым (перезапуск при падении
+# за 1 с) и пингует healthz раз в 30 с, чтобы превью не «засыпало».
+# Полезные переменные: SITEED_RATE_SCALE=6 (лимиты ×6 для тестов),
+# SITEED_SNAPSHOT=0 (не загружать снапшот), SITEED_FRONTEND_DIR=путь до frontend.
 ```
 
 Откроется Telegram Mini App: вход/регистрация с логотипом, выбор страны и города, двойной 2FA

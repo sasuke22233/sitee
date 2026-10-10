@@ -539,6 +539,15 @@ server.listen(port, host || '0.0.0.0', () => {
   console.log(line);
 });
 
+// Необработанные ошибки не должны ронять стенд: без этого процесс умирает
+// и preview показывает вечную загрузку (пользователь видит «долго грузится»).
+process.on('uncaughtException', (err) => {
+  console.error('[preview] необработанное исключение:', err?.message ?? err);
+});
+process.on('unhandledRejection', (reason) => {
+  console.error('[preview] необработанный reject:', reason?.message ?? reason);
+});
+
 for (const signal of ['SIGINT', 'SIGTERM']) {
   process.on(signal, () => {
     console.log(`[preview] ${signal}: останавливаюсь`);
