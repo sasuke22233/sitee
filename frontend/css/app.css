@@ -218,6 +218,7 @@ select.filter { appearance: none; padding-right: 24px;
 .btn--primary { background: linear-gradient(135deg, var(--accent), var(--accent-2)); border-color: transparent; color: #fff; }
 .btn--ok { background: linear-gradient(135deg, #4ad97f, #22a85a); border-color: transparent; color: #05240f; }
 .btn--danger { background: linear-gradient(135deg, #ff8585, #e04848); border-color: transparent; color: #2b0606; }
+.btn--warn { background: linear-gradient(135deg, #ffc46b, #e79a1f); border-color: transparent; color: #2b1a02; }
 .btn--ghost { background: transparent; }
 .btn--sm { padding: 6px 10px; font-size: 13px; border-radius: 8px; }
 .btn--block { width: 100%; }

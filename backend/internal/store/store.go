@@ -477,6 +477,12 @@ type Dispute struct {
 	ResolutionLamport int64         `json:"resolution_amount_sol,omitempty"`
 	ResolutionReason string         `json:"resolution_reason,omitempty"`
 	ResolvedAt       time.Time      `json:"resolved_at,omitempty"`
+	// Апелляция (FR-DSP-08): одна на спор, окно 72 ч, старший арбитр.
+	AppealOf           string    `json:"appeal_of,omitempty"`
+	AppealedBy         string    `json:"appealed_by,omitempty"`
+	AppealedAt         time.Time `json:"appealed_at,omitempty"`
+	AppealReason       string    `json:"appeal_reason,omitempty"`
+	ExecutionSuspended bool      `json:"execution_suspended,omitempty"`
 	ChatID           string         `json:"chat_id,omitempty"`
 	Salt             string         `json:"-"`
 	Evidence         []*Evidence    `json:"evidence,omitempty"`

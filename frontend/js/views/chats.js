@@ -337,6 +337,9 @@ export async function dispute(container, { navigate }, params) {
         },
       }));
     }
+    if (action === 'appeal') {
+      actions.push(h('button', { class: 'btn btn--warn', type: 'button', text: '⚑ Подать апелляцию', onclick: () => appealModal(d, reload) }));
+    }
     if (action === 'resolve') {
       actions.push(h('button', { class: 'btn btn--ok', type: 'button', text: 'Вынести решение', onclick: () => resolveModal(d, order, reload) }));
     }
@@ -358,6 +361,8 @@ export async function dispute(container, { navigate }, params) {
         h('dt', { text: 'Ответ до' }), h('dd', { text: `${dateTime(d.reply_deadline)} (${countdown(d.reply_deadline) ?? '—'})` }),
         d.resolve_deadline ? [h('dt', { text: 'Решение до' }), h('dd', { text: `${dateTime(d.resolve_deadline)} (${countdown(d.resolve_deadline) ?? '—'})` })] : null,
         d.resolution ? [h('dt', { text: 'Решение' }), h('dd', { text: `${d.resolution}${d.resolution_reason ? ` — ${d.resolution_reason}` : ''}` })] : null,
+        d.appeal_of ? [h('dt', { text: 'Апелляция' }), h('dd', { text: `подана ${dateTime(d.appealed_at)} · обоснование: ${d.appeal_reason ?? '—'} · рассматривает старший арбитр` })] : null,
+        d.execution_suspended ? [h('dt', { text: 'Исполнение' }), h('dd', { class: 'small', text: 'приостановлено до рассмотрения апелляции' })] : null,
         d.reveal && d.buyer_id ? [h('dt', { text: 'Покупатель (видит арбитр)' }), h('dd', { class: 'mono small', text: d.buyer_id })] : null,
         d.reveal && d.seller_id ? [h('dt', { text: 'Продавец (видит арбитр)' }), h('dd', { class: 'mono small', text: d.seller_id })] : null,
         h('dt', { text: 'Открыт' }), h('dd', { text: dateTime(d.created_at) })),
@@ -479,6 +484,37 @@ function evidenceModal(d, reload) {
             await api.post(`/api/v1/disputes/${d.id}/evidence`, payload);
             close(true);
             toast('Доказательство прикреплено', 'ok');
+            reload();
+          } catch (err) {
+            toast(describeError(err), 'err');
+          }
+          return true;
+        },
+      },
+    ],
+  });
+}
+
+// Апелляция (FR-DSP-08): одна на спор, окно 72 ч, старший арбитр, исполнение решения приостановлено.
+function appealModal(d, reload) {
+  const reason = h('textarea', {
+    class: 'textarea', placeholder: 'Почему решение арбитра следует пересмотреть (минимум 30 символов)',
+  });
+  modal({
+    title: 'Апелляция на решение',
+    sub: `${d.order_number ?? ''} · решение: ${d.resolution ?? '—'} · окно 72 часа`,
+    body: h('div', {},
+      h('div', { class: 'notice notice--warn', text: 'Апелляцию рассматривает старший арбитр, не участвовавший в первом решении. Исполнение возврата/выплаты приостанавливается до нового решения.' }),
+      h('div', { class: 'field' }, h('label', { class: 'field__label', text: 'Обоснование апелляции' }), reason)),
+    actions: [
+      { label: 'Отмена' },
+      {
+        label: 'Подать апелляцию', kind: 'warn',
+        onClick: async (close) => {
+          try {
+            const res = await api.post(`/api/v1/disputes/${d.id}/appeal`, { reason: reason.value.trim() });
+            close(true);
+            toast(`Апелляция принята: ${res.senior_arbiter_assigned ? 'назначен старший арбитр' : 'ожидает арбитра'}`, 'ok');
             reload();
           } catch (err) {
             toast(describeError(err), 'err');

@@ -794,7 +794,15 @@ func (s *Server) disputeDTOLocked(d *store.Dispute, viewer *store.User) map[stri
 			actions = []string{"reply", "attach_evidence"}
 		}
 	case store.DisputeResolved, store.DisputeDismissed:
-		actions = []string{"appeal"}
+		if d.AppealOf == "" && (d.ResolvedAt.IsZero() || time.Since(d.ResolvedAt) <= 72*time.Hour) {
+			actions = []string{"appeal"}
+		}
+	case store.DisputeAppeal:
+		if youAre == "arbiter" {
+			actions = []string{"resolve", "request_evidence"}
+		} else {
+			actions = []string{"reply", "attach_evidence"}
+		}
 	}
 
 	dto := map[string]any{
@@ -819,6 +827,12 @@ func (s *Server) disputeDTOLocked(d *store.Dispute, viewer *store.User) map[stri
 			dto["resolution_amount"] = store.FormatSOL(d.ResolutionLamport)
 		}
 	}
+	if d.AppealOf != "" {
+		dto["appeal_of"] = d.AppealOf
+		dto["appealed_at"] = d.AppealedAt
+		dto["appeal_reason"] = d.AppealReason
+	}
+	dto["execution_suspended"] = d.ExecutionSuspended
 	return dto
 }
 

@@ -407,6 +407,28 @@ export function pickArbiter(ctx, dispute) {
   return best ?? '';
 }
 
+// Старший арбитр для апелляции: исключаем предыдущего арбитра и стороны (FR-DSP-08).
+export function pickSeniorArbiter(ctx, dispute) {
+  const excluded = new Set([
+    dispute.buyer_id, dispute.seller_id, dispute.opened_by, dispute.arbiter_id,
+  ]);
+  const shop = ctx.db.shops.get(dispute.shop_id);
+  for (const op of shop?.operators ?? []) excluded.add(op);
+  let best = null;
+  let bestLoad = Infinity;
+  for (const user of ctx.db.users.values()) {
+    if (excluded.has(user.id)) continue;
+    if (!['arbiter', 'moderator', 'superadmin'].includes(user.role)) continue;
+    const load = [...ctx.db.disputes.values()]
+      .filter((d) => d.arbiter_id === user.id && !['resolved', 'dismissed', 'closed'].includes(d.status)).length;
+    if (load < bestLoad) {
+      best = user.id;
+      bestLoad = load;
+    }
+  }
+  return best ?? '';
+}
+
 export function arbiterPool(ctx) {
   return [...ctx.db.users.values()]
     .filter((u) => ['arbiter', 'moderator', 'superadmin'].includes(u.role) && u.status === 'active')

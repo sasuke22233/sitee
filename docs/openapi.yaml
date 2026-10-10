@@ -1425,6 +1425,49 @@ paths:
         '409': { $ref: '#/components/responses/ConflictError' }
         '404': { $ref: '#/components/responses/NotFound' }
         '429': { $ref: '#/components/responses/RateLimited' }
+  /disputes/{id}/appeal:
+    post:
+      tags: [disputes]
+      operationId: appealDispute
+      summary: "Апелляция на решение (FR-DSP-08)"
+      description: |
+        Одна апелляция на спор, окно 72 часа с момента решения. Спор переводится в
+        статус `appeal`, назначается старший арбитр (не тот, кто выносил решение),
+        исполнение `refund_*` приостанавливается до решения по апелляции.
+      security: [ { bearerAuth: [] } ]
+      parameters: [ { $ref: '#/components/parameters/PathId' } ]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [reason]
+              properties:
+                reason: { type: string, minLength: 30, maxLength: 4000 }
+      responses:
+        '200':
+          description: Апелляция принята
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  id: { type: string }
+                  status: { type: string, enum: [appeal] }
+                  appeal_of: { type: string }
+                  appealed_at: { type: string, format: date-time }
+                  appeal_reason: { type: string }
+                  execution_suspended: { type: boolean }
+                  senior_arbiter_assigned: { type: string }
+                  actions: { type: array, items: { type: string } }
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/ConflictError' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+
   /disputes/{id}/evidence/{evidenceId}:
     get:
       tags: [disputes]
@@ -2598,6 +2641,14 @@ components:
         reply_deadline: { type: string, format: date-time }
         resolution: { type: [string, 'null'] }
         resolution_amount: { type: [string, 'null'] }
+        resolution_reason: { type: [string, 'null'] }
+        resolved_at: { type: string, format: date-time }
+        appeal_of: { type: [string, 'null'], description: 'спор, по которому подана апелляция' }
+        appealed_at: { type: string, format: date-time }
+        appeal_reason: { type: [string, 'null'] }
+        execution_suspended:
+          type: boolean
+          description: 'исполнение refund_* и partial приостановлено до решения апелляции'
         actions: { type: array, items: { type: string } }
 
     ChatListItem:

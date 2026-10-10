@@ -288,8 +288,20 @@ POST /api/v1/disputes/{id}/resolve          // арбитр (фактор ops о
 → { "status":"resolved","executed":{"tx_id":"tx_…","refunded":"1.20","released":"1.39"},
     "order_status":"refunded" }
 
-POST /api/v1/disputes/{id}/appeal  { "reason":"…" }
-```
+POST /api/v1/disputes/{id}/appeal  { "reason":"Арбитр не учёл пункт 4 правил… (≥30 симв.)" }
+→ 200 { "status":"appeal", "appeal_of":"dsp_…", "execution_suspended":true,
+        "arbiter_id":"usr_…", "actions":["reply","attach_evidence","resolve"] }
+  409 ALREADY_APPEALED — по спору апелляция уже подана;
+  409 DISPUTE_NOT_APPEALABLE — спор ещё не решён (апелляция только после resolved/dismissed);
+  409 APPEAL_WINDOW_CLOSED — прошло больше 72 ч с момента решения;
+  403 FORBIDDEN — апелляцию подаёт сторона спора (покупатель или продавец);
+  400 — обоснование короче 30 символов.
+Апелляция (FR-DSP-06) назначается **старшему арбитру**: кандидаты — сотрудники со ролью
+`arbiter`/`superadmin`, исключая стороны спора и арбитра, вынесшего первое решение; среди
+оставшихся берётся наименее загруженный (минимальное число активных споров). Пока
+рассматривается апелляция, статус спора — `appeal`, а исполнение решений `refund_*` и
+`partial` приостановлено: средства остаются на эскроу до решения старшего арбитра
+(`execution_suspended: true`). Повторная апелляция по тому же спору невозможна.
 **Маскировка (FR-DSP-03)** реализуется на сервере: в ответах не-арбитру поля `id`, `nickname`,
 `avatar`, `country`, `city` второй стороны **отсутствуют**; вместо них — `visible_as`.
 Арбитр получает `reveal: true` и полные данные + запись в аудит (`dispute.reveal`).

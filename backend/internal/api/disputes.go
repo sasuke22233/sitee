@@ -707,6 +707,147 @@ func (s *Server) handleResolveDispute(w http.ResponseWriter, r *http.Request) {
 	httpx.JSON(w, http.StatusOK, dto)
 }
 
+// ---------------------------------------------------------------------------
+// Апелляция (FR-DSP-08): одна на спор, окно 72 ч, старший арбитр,
+// исполнение refund_* приостанавливается до решения по апелляции.
+// ---------------------------------------------------------------------------
+
+type appealRequest struct {
+	Reason string `json:"reason"`
+}
+
+func (s *Server) handleAppealDispute(w http.ResponseWriter, r *http.Request) {
+	u, ok := s.requireAuth(w, r)
+	if !ok {
+		return
+	}
+	var req appealRequest
+	if err := httpx.Decode(r, &req); err != nil {
+		httpx.Fail(w, r, err)
+		return
+	}
+	reason := strings.TrimSpace(req.Reason)
+	if utf8len(reason) < 30 {
+		httpx.Fail(w, r, httpx.BadRequest("обоснование апелляции — не менее 30 символов", nil))
+		return
+	}
+	d, ok := s.loadDisputeForUser(w, r, u)
+	if !ok {
+		return
+	}
+	if d.BuyerID != u.ID && d.SellerID != u.ID {
+		httpx.Fail(w, r, httpx.Forbidden("FORBIDDEN", "апелляция подаётся стороной спора"))
+		return
+	}
+	var (
+		fail   *httpx.APIError
+		senior string
+	)
+	now := time.Now().UTC()
+	s.Store.Write(func() {
+		if d.AppealOf != "" {
+			fail = httpx.Conflict("ALREADY_APPEALED", "по этому спору апелляция уже подана")
+			return
+		}
+		if d.Status != store.DisputeResolved && d.Status != store.DisputeDismissed {
+			fail = httpx.Conflict("DISPUTE_NOT_APPEALABLE",
+				"апелляция возможна только после решения по спору")
+			return
+		}
+		if !d.ResolvedAt.IsZero() && now.Sub(d.ResolvedAt) > 72*time.Hour {
+			fail = httpx.Conflict("APPEAL_WINDOW_CLOSED",
+				"окно апелляции — 72 часа с момента решения")
+			return
+		}
+		// Старший арбитр: не тот, кто выносил решение (конфликт интересов).
+		senior = s.pickSeniorArbiterLocked(d)
+		if senior == "" {
+			fail = httpx.Conflict("NO_ARBITER", "свободный старший арбитр не найден")
+			return
+		}
+		d.AppealOf = d.ID
+		d.AppealedBy = u.ID
+		d.AppealedAt = now
+		d.AppealReason = reason
+		d.Status = store.DisputeAppeal
+		d.ArbiterID = senior
+		d.AssignedAt = now
+		// Исполнение refund_* приостанавливается до решения по апелляции.
+		if strings.HasPrefix(d.Resolution, "refund") || d.Resolution == "partial" {
+			d.ExecutionSuspended = true
+		}
+		d.Timeline = append(d.Timeline, &store.DisputeEvent{
+			TS: now, Kind: "appeal", ActorID: u.ID,
+			VisibleAs: aliasForViewers(d, u.ID), Note: reason,
+		})
+	})
+	if fail != nil {
+		httpx.Fail(w, r, fail)
+		return
+	}
+	s.audit(r, u.ID, u.Role, "dispute.appeal", "dispute", d.ID, reason, "",
+		map[string]any{"resolution": d.Resolution, "execution_suspended": d.ExecutionSuspended},
+		map[string]any{"status": d.Status, "arbiter_id": senior})
+	s.notify(d.BuyerID, "dispute_appeal", "Апелляция принята",
+		"Спор передан старшему арбитру. Исполнение решения приостановлено.",
+		"dispute:"+d.ID+":appeal:"+d.BuyerID,
+		map[string]any{"dispute_id": d.ID})
+	s.notify(d.SellerID, "dispute_appeal", "Апелляция по спору",
+		"По спору подана апелляция. Исполнение решения приостановлено.",
+		"dispute:"+d.ID+":appeal:"+d.SellerID,
+		map[string]any{"dispute_id": d.ID})
+	s.notify(senior, "dispute_appeal", "Назначена апелляция",
+		"Вам назначен спор по апелляции. Срок решения — 5 суток.",
+		"dispute:"+d.ID+":appeal:"+senior,
+		map[string]any{"dispute_id": d.ID})
+	s.pushMany([]string{d.BuyerID, d.SellerID, senior}, "dispute.appealed", map[string]any{
+		"dispute_id": d.ID, "status": d.Status, "execution_suspended": d.ExecutionSuspended,
+	})
+
+	var dto map[string]any
+	s.Store.Read(func() { dto = s.disputeDTOLocked(d, u) })
+	dto["appeal_of"] = d.AppealOf
+	dto["appealed_by"] = d.AppealedBy
+	dto["appealed_at"] = d.AppealedAt
+	dto["appeal_reason"] = d.AppealReason
+	dto["execution_suspended"] = d.ExecutionSuspended
+	dto["senior_arbiter_assigned"] = senior
+	httpx.JSON(w, http.StatusOK, dto)
+}
+
+// pickSeniorArbiterLocked — старший арбитр для апелляции: максимально свободный
+// staff, исключая предыдущего арбитра и стороны спора (FR-DSP-08).
+func (s *Server) pickSeniorArbiterLocked(d *store.Dispute) string {
+	excluded := map[string]bool{d.BuyerID: true, d.SellerID: true, d.OpenedBy: true, d.ArbiterID: true}
+	if sh, ok := s.Store.Shops[d.ShopID]; ok {
+		for _, op := range sh.Operators {
+			excluded[op] = true
+		}
+	}
+	best, bestLoad := "", -1
+	for _, u := range s.Store.Users {
+		if excluded[u.ID] {
+			continue
+		}
+		switch u.Role {
+		case store.RoleArbiter, store.RoleModerator, store.RoleSuperAdmin:
+		default:
+			continue
+		}
+		n := 0
+		for _, other := range s.Store.Disputes {
+			if other.ArbiterID == u.ID && other.Status != store.DisputeResolved &&
+				other.Status != store.DisputeDismissed && other.Status != store.DisputeClosed {
+				n++
+			}
+		}
+		if bestLoad < 0 || n < bestLoad {
+			best, bestLoad = u.ID, n
+		}
+	}
+	return best
+}
+
 func resolutionTitleRU(code string) string {
 	switch code {
 	case "refund_buyer":

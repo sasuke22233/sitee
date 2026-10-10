@@ -147,6 +147,22 @@ COMMIT;
 загруженные сверх лимита (по умолчанию 10 активных). Выбор — взвешенно-случайный
 (вес = 1/(1+active)), с ротацией и учётом часового пояса (SLA 24 ч на принятие).
 
+### 3.5.1 Апелляция (FR-DSP-06)
+| Параметр | Значение |
+|---|---|
+| Окно подачи | 72 часа с момента resolved/dismissed |
+| Кто подаёт | сторона спора: покупатель или продавец |
+| Сколько раз | одна апелляция на спор (appeal_of ссылается на решённый спор) |
+| Обоснование | не менее 30 символов, попадает в таймлайн как appeal |
+| Статус спора | appeal |
+| Исполнение | refund_* и partial приостанавливаются — средства остаются на эскроу (execution_suspended: true) |
+| Арбитр | старший: роль arbiter/superadmin, не сторона спора и не арбитр первого решения; выбор — наименее загруженный |
+
+Ошибки: ALREADY_APPEALED (409), DISPUTE_NOT_APPEALABLE (409), APPEAL_WINDOW_CLOSED (409),
+FORBIDDEN (403). Решение старшего арбитра — финальное: повторная апелляция и эскалация
+недоступны, execution_suspended снимается, исполнение выполняется по новому решению.
+POST /api/v1/disputes/{id}/appeal — в docs/api.md §5.
+
 ### 3.6 Метрики споров
 `disputes_opened_total{reason}`, `dispute_resolution_time_seconds`,
 `disputes_by_resolution{resolution}`, `shop_dispute_rate`, `buyer_dispute_rate`,

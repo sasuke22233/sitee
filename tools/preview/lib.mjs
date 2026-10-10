@@ -643,9 +643,16 @@ export function disputeDto(ctx, dispute, viewer) {
   const yourAlias = youAre === 'shop_admin' ? dispute.seller_alias : dispute.buyer_alias;
   const counterAlias = youAre === 'shop_admin' ? dispute.buyer_alias : dispute.seller_alias;
   const order = ctx.db.orders.get(dispute.order_id);
-  const actions = dispute.status === 'in_arbitration'
-    ? (youAre === 'arbiter' ? ['resolve', 'request_evidence'] : ['reply', 'attach_evidence'])
-    : ['reply', 'attach_evidence', 'escalate'];
+  let actions;
+  if (dispute.status === 'in_arbitration' || dispute.status === 'appeal') {
+    actions = youAre === 'arbiter' ? ['resolve', 'request_evidence'] : ['reply', 'attach_evidence'];
+  } else if (['resolved', 'dismissed'].includes(dispute.status)) {
+    // Апелляция (FR-DSP-08): одна на спор, окно 72 ч с момента решения.
+    const inWindow = !dispute.resolved_at || Date.now() - new Date(dispute.resolved_at).getTime() <= 72 * 3600_000;
+    actions = !dispute.appeal_of && inWindow ? ['appeal'] : [];
+  } else {
+    actions = ['reply', 'attach_evidence', 'escalate'];
+  }
   return {
     id: dispute.id, order_id: dispute.order_id, order_number: order?.number, shop_id: dispute.shop_id,
     status: dispute.status, reason_code: dispute.reason_code, chat_id: dispute.chat_id,
@@ -667,6 +674,9 @@ export function disputeDto(ctx, dispute, viewer) {
     created_at: dispute.created_at, description: dispute.description,
     resolution: dispute.resolution || undefined, resolution_reason: dispute.resolution_reason || undefined,
     resolved_at: dispute.resolved_at || undefined,
+    appeal_of: dispute.appeal_of || undefined, appealed_at: dispute.appealed_at || undefined,
+    appeal_reason: dispute.appeal_reason || undefined,
+    execution_suspended: !!dispute.execution_suspended,
     masking_notice: `Вы видите вторую сторону как ${counterAlias}. Личные данные скрыты; арбитр видит обе стороны.`,
   };
 }

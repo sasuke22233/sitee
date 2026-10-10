@@ -71,11 +71,11 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: ${{ env.NODE_VERSION }}
-      - name: smoke прототипа (96 проверок)
+      - name: smoke прототипа (127 проверок)
         run: |
           cd tools/preview
           npm install --no-audit --no-fund --omit=dev
-          SITEED_SNAPSHOT=0 node server.mjs &
+          SITEED_RATE_SCALE=6 SITEED_SNAPSHOT=0 node server.mjs &
           for i in $(seq 1 40); do
             curl -sf http://127.0.0.1:8080/healthz >/dev/null && break
             sleep 0.5

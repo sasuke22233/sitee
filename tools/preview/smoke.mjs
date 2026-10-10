@@ -250,6 +250,38 @@ async function main() {
   check('заказ → refunded', resolve.data.order_status === 'refunded');
   const disputesList = await call('GET', '/api/v1/disputes', { token: tokens.buyer_nova.access });
   check('список споров покупателя', disputesList.data.items.length >= 1);
+  const appeal = await call('POST', `/api/v1/disputes/${dispute.data.id}/appeal`, {
+    token: tokens.buyer_nova.access,
+    body: { reason: 'Ключ активировался на другом аккаунте, прошу пересмотреть решение арбитра и вернуть средства.' },
+  });
+  check('апелляция принята → appeal', appeal.status === 200 && appeal.data.status === 'appeal',
+    JSON.stringify(appeal.data).slice(0, 160));
+  check('апелляция: исполнение refund приостановлено', appeal.data.execution_suspended === true);
+  check('апелляция: назначен старший арбитр', !!appeal.data.senior_arbiter_assigned
+    && appeal.data.senior_arbiter_assigned !== arbiterToken,
+    `новый ${appeal.data.senior_arbiter_assigned}, прежний ${arbiterToken}`);
+  check('апелляция: ссылка на решённый спор', appeal.data.appeal_of === dispute.data.id);
+  const appealTwice = await call('POST', `/api/v1/disputes/${dispute.data.id}/appeal`, {
+    token: tokens.buyer_nova.access, body: { reason: 'Повторная апелляция по тому же спору, хочу ещё один пересмотр.' },
+  });
+  check('повторная апелляция → 409 ALREADY_APPEALED',
+    appealTwice.status === 409 && appealTwice.data.error?.code === 'ALREADY_APPEALED',
+    `(${appealTwice.status}) ${JSON.stringify(appealTwice.data).slice(0, 120)}`);
+  const appealShort = await call('POST', `/api/v1/disputes/${dispute.data.id}/appeal`, {
+    token: tokens.buyer_nova.access, body: { reason: 'слишком коротко' },
+  });
+  check('апелляция: короткое обоснование → 400', appealShort.status === 400,
+    `(${appealShort.status}) ${JSON.stringify(appealShort.data).slice(0, 120)}`);
+  const appealNotParty = await call('POST', `/api/v1/disputes/${dispute.data.id}/appeal`, {
+    token: tokens.sitee_arbiter.access,
+    body: { reason: 'Апелляция от лица арбитра, который не является стороной спора.' },
+  });
+  check('апелляция не стороной спора → 403', appealNotParty.status === 403,
+    `(${appealNotParty.status})`);
+  const appealView = await call('GET', `/api/v1/disputes/${dispute.data.id}`, { token: otherStaff });
+  check('старший арбитр видит спор в статусе appeal', appealView.status === 200 && appealView.data.status === 'appeal',
+    `(${appealView.status}) ${JSON.stringify(appealView.data).slice(0, 120)}`);
+  check('действия в appeal: арбитр может решить', (appealView.data.actions ?? []).includes('resolve'));
   const evId = evidence.data.id ?? evidence.data.evidence_id;
   const evGet = await call('GET', `/api/v1/disputes/${dispute.data.id}/evidence/${evId}`, {
     token: tokens.buyer_nova.access,

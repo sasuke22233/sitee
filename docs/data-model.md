@@ -504,6 +504,10 @@ CREATE TABLE disputes (
   resolution_reason text,
   resolved_at   timestamptz,
   appeal_of     text REFERENCES disputes(id),
+  appealed_by   text REFERENCES users(id),
+  appealed_at   timestamptz,
+  appeal_reason text,
+  execution_suspended boolean NOT NULL DEFAULT false, -- refund_*/partial не исполняется до решения апелляции
   chat_id       text,
   created_at    timestamptz NOT NULL DEFAULT now(),
   updated_at    timestamptz NOT NULL DEFAULT now()

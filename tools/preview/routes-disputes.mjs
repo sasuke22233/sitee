@@ -11,7 +11,7 @@ import { ACC, aliasFor } from './data.mjs';
 import {
   findOrder, findShop, transition, canTransition, releaseEscrow, refundEscrow,
   addMember, addMessage, broadcastMessage, systemMessage, shopAdmins,
-  pickArbiter, arbiterPool, finishOrderStats, orderStatusMessage, HOUR,
+  pickArbiter, pickSeniorArbiter, arbiterPool, finishOrderStats, orderStatusMessage, HOUR,
 } from './domain.mjs';
 
 const REASONS = {
@@ -344,6 +344,71 @@ export function disputeRoutes(ctx) {
       },
     });
   }, { rate: 'admin' }]);
+
+  // ------------------------------------------------------------------
+  // Апелляция (FR-DSP-08): одна на спор, окно 72 ч, старший арбитр,
+  // исполнение refund_* приостанавливается до решения по апелляции.
+  // ------------------------------------------------------------------
+  routes.push(['POST', '/api/v1/disputes/:id/appeal', (r) => {
+    const auth = requireAuth(ctx, r.req);
+    const reason = String(r.body?.reason ?? '').trim();
+    if (reason.length < 30) throw bad('обоснование апелляции — не менее 30 символов');
+    const dispute = ctx.db.disputes.get(r.params.id);
+    if (!dispute) throw notFound('спор не найден');
+    if (dispute.buyer_id !== auth.user.id && dispute.seller_id !== auth.user.id) {
+      throw forbidden('FORBIDDEN', 'апелляция подаётся стороной спора');
+    }
+    if (dispute.appeal_of) throw conflict('ALREADY_APPEALED', 'по этому спору апелляция уже подана');
+    if (!['resolved', 'dismissed'].includes(dispute.status)) {
+      throw conflict('DISPUTE_NOT_APPEALABLE', 'апелляция возможна только после решения по спору');
+    }
+    if (dispute.resolved_at && Date.now() - new Date(dispute.resolved_at).getTime() > 72 * 3600_000) {
+      throw conflict('APPEAL_WINDOW_CLOSED', 'окно апелляции — 72 часа с момента решения');
+    }
+    const senior = pickSeniorArbiter(ctx, dispute);
+    if (!senior) throw conflict('NO_ARBITER', 'свободный старший арбитр не найден');
+
+    const now = new Date().toISOString();
+    dispute.status = 'appeal';
+    dispute.appeal_of = dispute.id;
+    dispute.appealed_by = auth.user.id;
+    dispute.appealed_at = now;
+    dispute.appeal_reason = reason;
+    dispute.arbiter_id = senior;
+    dispute.assigned_at = now;
+    dispute.updated_at = now;
+    dispute.execution_suspended = ['refund_buyer', 'partial'].includes(dispute.resolution);
+    dispute.timeline.push({
+      ts: now, kind: 'appeal', actor_id: auth.user.id,
+      actor_visible_as: dispute.buyer_id === auth.user.id ? dispute.buyer_alias : dispute.seller_alias,
+      note: reason,
+    });
+    const order = ctx.db.orders.get(dispute.order_id);
+    if (order && dispute.execution_suspended) {
+      orderStatusMessage(ctx, order, 'Исполнение решения приостановлено: подана апелляция.');
+    }
+    audit(ctx, r.req, auth.user, 'dispute.appeal', 'dispute', dispute.id, reason, '',
+      { resolution: dispute.resolution, execution_suspended: dispute.execution_suspended },
+      { status: dispute.status, arbiter_id: senior });
+    for (const userId of [dispute.buyer_id, dispute.seller_id, senior]) {
+      notify(ctx, userId, 'dispute_appeal',
+        userId === senior ? 'Назначена апелляция' : 'Апелляция по спору',
+        userId === senior
+          ? 'Вам назначен спор по апелляции. Срок решения — 5 суток.'
+          : 'Спор передан старшему арбитру. Исполнение решения приостановлено.',
+        `dispute:${dispute.id}:appeal:${userId}`, { dispute_id: dispute.id });
+      push(ctx, userId, 'dispute.appealed', {
+        dispute_id: dispute.id, status: dispute.status,
+        execution_suspended: dispute.execution_suspended,
+      });
+    }
+    return ok({
+      ...disputeDto(ctx, dispute, auth.user),
+      appeal_of: dispute.appeal_of, appealed_by: dispute.appealed_by, appealed_at: dispute.appealed_at,
+      appeal_reason: dispute.appeal_reason, execution_suspended: dispute.execution_suspended,
+      senior_arbiter_assigned: senior,
+    });
+  }, { rate: 'write' }]);
 
   // ------------------------------------------------------------------
   // Доказательства (FR-DSP-05)

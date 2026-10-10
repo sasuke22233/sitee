@@ -61,6 +61,12 @@ cd tools/preview && npm start                        # http://0.0.0.0:8080
 # за 1 с) и пингует healthz раз в 30 с, чтобы превью не «засыпало».
 # Полезные переменные: SITEED_RATE_SCALE=6 (лимиты ×6 для тестов),
 # SITEED_SNAPSHOT=0 (не загружать снапшот), SITEED_FRONTEND_DIR=путь до frontend.
+#
+# npm start:demo — готовый демо-стенд (SITEED_RATE_SCALE=6 SITEED_SNAPSHOT=0);
+#             именно с ним гоняются tools/preview/smoke.mjs и tools/fe-test/run.mjs,
+#             иначе demo-лимиты (5 входов/мин) ловят 429 в тестах.
+# npm test      — smoke-набор (только против свежезапущенного сервера: smoke
+#             использует одноразовые backup-коды из /api/v1/dev/credentials).
 ```
 
 Откроется Telegram Mini App: вход/регистрация с логотипом, выбор страны и города, двойной 2FA

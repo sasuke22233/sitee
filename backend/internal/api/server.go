@@ -155,6 +155,8 @@ func (s *Server) registerRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("GET /api/v1/disputes/{id}", s.handleGetDispute)
 	mux.HandleFunc("POST /api/v1/disputes/{id}/escalate", s.handleEscalateDispute)
 	mux.HandleFunc("POST /api/v1/disputes/{id}/resolve", s.handleResolveDispute)
+	mux.HandleFunc("POST /api/v1/disputes/{id}/appeal", s.handleAppealDispute)
+	mux.HandleFunc("POST /api/v1/disputes/{id}/appeal", s.handleAppealDispute)
 	mux.HandleFunc("POST /api/v1/disputes/{id}/evidence", s.handleAddEvidence)
 	mux.HandleFunc("GET /api/v1/disputes/{id}/evidence/{evidenceId}", s.handleGetDisputeEvidence)
 

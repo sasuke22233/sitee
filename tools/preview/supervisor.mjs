@@ -7,6 +7,7 @@
 //
 // Запуск: node supervisor.mjs   (окружение как у server.mjs: SITEED_*)
 import { spawn } from 'node:child_process';
+import { fileURLToPath } from 'node:url';
 
 const PORT = Number(process.env.PORT ?? process.env.ADDR?.split(':').pop() ?? 8080);
 const KEEPALIVE_MS = 30_000;
@@ -17,7 +18,9 @@ let restarts = 0;
 
 function start() {
   if (stopping) return;
+  const here = fileURLToPath(new URL('.', import.meta.url));
   child = spawn(process.execPath, ['server.mjs'], {
+    cwd: here,
     stdio: 'inherit',
     env: process.env,
   });
