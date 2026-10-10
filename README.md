@@ -26,6 +26,7 @@ Telegram Stars.
 | `docs/orders-disputes.md` | Механика заказа, статусы, споры, маскировка, арбитраж | ✅ |
 | `docs/deploy.md` | Развёртывание: Docker/K8s, nginx, Vault, бэкапы, мониторинг, CI/CD | ✅ |
 | `docs/acceptance.md` | Критерии приёмки, тест-кейсы, SLA, этапы и оценки | ✅ |
+| `docs/CHECKLIST-TZ.md` | **Чек-лист по ТЗ**: что сделано, что требует реального окружения | ✅ |
 | `docs/openapi.yaml` | Машиночитаемый контракт API | ✅ |
 | `backend/` | **Go** — API, WebSocket-хаб, бизнес-логика (auth/2FA, магазины, заказы, споры, админка) | 🟡 исходники MVP |
 | `crypto-core/` | **Rust** — AES-256-GCM envelope-шифрование, HKDF/PBKDF2/HMAC, TOTP, Ed25519/Solana-подпись, анти-фрод и rate-limit движок | 🟡 исходники MVP |

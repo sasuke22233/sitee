@@ -154,6 +154,7 @@ function card(shop, navigate) {
     shop.verified ? h('span', { class: 'shop-card__verified', title: 'Верифицирован', text: '✔' }) : null,
     shop.cover_url ? null : h('span', { text: initials(shop.name) }),
     shop.gift_boost > 0 ? h('span', { class: 'shop-card__boost chip chip--gold', text: `🎁 буст +${Math.round(shop.gift_boost * 100)} %` }) : null),
+  h('div', { class: 'shop-card__body' },
   h('div', { class: 'shop-card__name', text: shop.name, title: shop.name }),
   h('div', { class: 'shop-card__meta' },
     h('span', { class: 'shop-card__rating', text: `★ ${shop.rating.toFixed(1)}` }),
@@ -165,7 +166,7 @@ function card(shop, navigate) {
     shop.price_from_sol ? h('span', { class: 'chip chip--muted', text: `от ${shop.price_from_sol} SOL` }) : null,
     shop.rent_status === 'trial' ? h('span', { class: 'chip chip--info', text: 'trial' }) : null,
     shop.same_country ? h('span', { class: 'chip chip--ok', text: 'рядом' }) : null,
-    shop.promoted ? h('span', { class: 'chip chip--warn', text: 'продвижение' }) : null));
+    shop.promoted ? h('span', { class: 'chip chip--warn', text: 'продвижение' }) : null)));
 }
 
 function shade(hex) {

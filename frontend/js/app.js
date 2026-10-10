@@ -262,6 +262,7 @@ async function start() {
   await loadMe();
   if (localStore.tokens?.access) live.connect();
   S.booted = true;
+  if (typeof window !== 'undefined') window.__siteeBooted = true;
   if (!location.hash) location.hash = S.me ? '#/shops' : '#/welcome';
   await render();
   setInterval(() => refreshUnread(), 60_000);

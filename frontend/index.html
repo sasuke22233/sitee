@@ -33,8 +33,17 @@
     </header>
 
     <main class="view" id="view" tabindex="-1">
-      <div class="splash"><div class="spinner"></div><p>Загружаем SITEE…</p></div>
+      <div class="splash" id="splash">
+        <div class="spinner"></div>
+        <p>Загружаем SITEE…</p>
+      </div>
     </main>
+    <noscript>
+      <div class="notice notice--err" style="margin:12px">
+        Для работы SITEE нужен JavaScript. Включите его в настройках браузера или
+        откройте Mini App внутри Telegram.
+      </div>
+    </noscript>
 
     <!-- Нижняя панель в стиле Telegram: 4 раздела (FR-NAV-01) -->
     <nav class="tabbar" id="tabbar" aria-label="Основная навигация">
@@ -61,6 +70,24 @@
     <div class="modal-root" id="modal-root" hidden></div>
   </div>
 
+  <script>
+    // Страховка от «превью как будто не загружено»: если модуль не стартовал
+    // (блокировщик скриптов, ошибка сети, кеш), показываем причину и действие.
+    window.__siteeBooted = false;
+    setTimeout(function () {
+      if (window.__siteeBooted) return;
+      var splash = document.getElementById('splash');
+      if (!splash) return;
+      splash.innerHTML =
+        '<div class="empty"><div class="empty__icon">\u26a1</div>' +
+        '<div><b>Интерфейс не запустился</b></div>' +
+        '<div class="small dim" style="margin-top:6px">' +
+        'Не удалось загрузить модули приложения. Обновите страницу (Ctrl+F5) ' +
+        'или откройте Mini App заново.</div>' +
+        '<div style="margin-top:14px"><button class="btn btn--primary" ' +
+        'onclick="location.reload()">Перезагрузить</button></div></div>';
+    }, 12000);
+  </script>
   <script type="module" src="/js/app.js"></script>
 </body>
 </html>
