@@ -2,9 +2,9 @@
 // Соответствует docs/api.md §8, docs/security.md §4 (E2EE) и FR-MSG-*.
 import * as C from './crypto.mjs';
 import {
-  bad, conflict, forbidden, notFound, unprocessable,
+  bad, conflict, forbidden, notFound, unprocessable, tooMany,
   ok, created, paginate, truncate, chatDto, messageDto,
-  requireAuth, audit, notify, push, pushMany,
+  requireAuth, audit, notify, push, pushMany, allow,
 } from './lib.mjs';
 import {
   findOrder, findShop, addMember, addMessage, broadcastMessage, isMember,
@@ -187,7 +187,15 @@ export function messengerRoutes(ctx) {
     if (chat.closed_at) throw conflict('CHAT_CLOSED', 'чат закрыт');
     if (!isMember(ctx, chat.id, auth.user.id)) throw forbidden('FORBIDDEN', 'вы не участник чата');
     const mine = (ctx.db.members.get(chat.id) ?? []).find((m) => m.user_id === auth.user.id);
+    if (mine?.blocked) throw forbidden('BLOCKED', 'участник заблокирован в этом чате');
     if (mine?.muted) throw forbidden('MUTED', 'отправка сообщений ограничена модератором');
+    // FR-MSG-10: троттлинг 100 сообщений/мин, после серии отказов — мут на 30 минут.
+    const rl = allow(`chatmsg:${chat.id}:${auth.user.id}`, 'chat-msg');
+    if (!rl.allowed) {
+      throw tooMany(rl.blocked
+        ? `отправка ограничена на ${rl.retryAfter} с: слишком много сообщений`
+        : `слишком много сообщений, повторите через ${rl.retryAfter} с`, rl.retryAfter);
+    }
     const b = r.body ?? {};
     const type = String(b.type ?? 'text');
     if (!['text', 'file', 'image', 'gift', 'system'].includes(type)) throw bad('некорректный тип сообщения');

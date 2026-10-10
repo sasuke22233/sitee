@@ -469,6 +469,61 @@ async function main() {
     token: tokens.sitee_admin.access, body: { blocked_countries: ['CN', 'IR'], totp_code: await opsCode('sitee_admin') },
   });
 
+  console.log('\n9c. Троттлинг сообщений в чате (FR-MSG-10)');
+  await call('POST', '/api/v1/dev/reset-guards');
+  const floodNick = `flood${Date.now().toString(36)}`;
+  const floodReg = await call('POST', '/api/v1/auth/register', {
+    body: {
+      email: `${floodNick}@example.com`, nickname: floodNick, password: 'Str0ng#Pass2026',
+      password_confirm: 'Str0ng#Pass2026', country_code: 'GE',
+      city_id: (await call('GET', '/api/v1/geo/cities?country=GE')).data.items[0].id,
+      accept_terms: true, is_18plus: true, locale: 'ru', captcha_token: 'dev',
+    },
+  });
+  check('9c: регистрация флудера', floodReg.status === 201 && floodReg.data.enrollment_id);
+  await call('POST', '/api/v1/auth/verify-contact', {
+    body: { enrollment_id: floodReg.data.enrollment_id, code: floodReg.data.dev_code },
+  });
+  const floodSetup = await call('POST', '/api/v1/auth/2fa/setup', {
+    body: { factor: 'login', enrollment_id: floodReg.data.enrollment_id },
+  });
+  const floodActivate = await call('POST', '/api/v1/auth/2fa/activate', {
+    body: {
+      factor: 'login', enrollment_id: floodReg.data.enrollment_id,
+      code1: floodSetup.data.dev_codes[0], code2: floodSetup.data.dev_codes[1],
+    },
+  });
+  check('9c: сессия флудера', floodActivate.status === 200 && floodActivate.data.access_token);
+  const floodToken = floodActivate.data.access_token;
+  const floodShop = (await call('GET', '/api/v1/shops?limit=1', {})).data.items[0];
+  const floodChat = await call('POST', '/api/v1/chats', {
+    token: floodToken, body: { kind: 'shop_support', shop_id: floodShop.id },
+  });
+  check('9c: чат с админом магазина', [200, 201].includes(floodChat.status) && floodChat.data.id,
+    JSON.stringify(floodChat.data).slice(0, 140));
+  let rejected = 0;
+  let firstError = '';
+  let muted = false;
+  for (let i = 0; i < 400 && !muted; i += 1) {
+    const sent = await call('POST', `/api/v1/chats/${floodChat.data.id}/messages`, {
+      token: floodToken,
+      body: { type: 'text', body: `флуд ${i}`, client_msg_id: `flood-${i}-${Date.now()}` },
+    });
+    if (sent.status === 429) {
+      rejected += 1;
+      const text = JSON.stringify(sent.data);
+      if (!firstError) firstError = text.slice(0, 160);
+      if (/сообщени/i.test(text)) muted = true;
+    }
+  }
+  check('9c: троттлинг чата вернул 429', rejected > 0, `отказов ${rejected} ${firstError}`);
+  const afterFlood = await call('POST', `/api/v1/chats/${floodChat.data.id}/messages`, {
+    token: floodToken, body: { type: 'text', body: 'ещё одно после серии отказов' },
+  });
+  check('9c: после серии отказов отправка ограничена', afterFlood.status === 429,
+    `(${afterFlood.status}) ${JSON.stringify(afterFlood.data).slice(0, 140)}`);
+  await call('POST', '/api/v1/dev/reset-guards');
+
   console.log('\n10. Анти-брутфорс и rate limit');
   for (let i = 0; i < 6; i += 1) {
     await call('POST', '/api/v1/auth/login', { body: { identifier: `${nick}@example.com`, password: 'bad', device: {} } });

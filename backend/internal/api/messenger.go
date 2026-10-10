@@ -11,6 +11,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/sasuke22233/sitee/backend/internal/antifraud"
 	"github.com/sasuke22233/sitee/backend/internal/platform/httpx"
 	"github.com/sasuke22233/sitee/backend/internal/platform/ids"
 	"github.com/sasuke22233/sitee/backend/internal/store"
@@ -604,6 +605,32 @@ func (s *Server) postMessage(u *store.User, chatID string, req sendMessageReques
 		}
 		if chat.ClosedAt != (time.Time{}) {
 			fail = httpx.Conflict("CHAT_CLOSED", "чат закрыт")
+			return
+		}
+		// Ограничения участника: мут/бан от модератора (FR-MSG-10).
+		for _, m := range s.Store.Members[chatID] {
+			if m.UserID != u.ID {
+				continue
+			}
+			if m.Blocked {
+				fail = httpx.Forbidden("BLOCKED", "участник заблокирован в этом чате")
+				return
+			}
+			if m.Muted {
+				fail = httpx.Forbidden("MUTED", "отправка сообщений ограничена модератором")
+				return
+			}
+		}
+		// Троттлинг отправки: 100 сообщений в минуту на пользователя в чате,
+		// после серии отказов — автоматический мут на 30 минут (FR-MSG-10).
+		if d := s.Limiter.Allow("chatmsg:"+chatID+":"+u.ID, antifraud.ProfileChatMsg); !d.Allowed {
+			if d.Blocked {
+				fail = httpx.Forbidden("MUTED", "слишком много сообщений: отправка ограничена на 30 минут")
+				fail.RetryAfter = int(d.RetryAfter.Seconds())
+				return
+			}
+			fail = httpx.TooManyRequests("слишком много сообщений, повторите через "+
+				strconv.Itoa(int(d.RetryAfter.Seconds()))+" с", d.RetryAfter)
 			return
 		}
 		if chat.Kind == store.ChatChannel {

@@ -449,8 +449,24 @@ attach(server, hub, {
             break;
           }
           const mine = (ctx.db.members.get(chat.id) ?? []).find((m) => m.user_id === user.id);
+          if (mine?.blocked) {
+            conn.send({ v: 1, t: 'error', ts: Date.now(), d: { code: 'BLOCKED', message: 'участник заблокирован в этом чате' } });
+            break;
+          }
           if (mine?.muted) {
             conn.send({ v: 1, t: 'error', ts: Date.now(), d: { code: 'MUTED', message: 'отправка ограничена модератором' } });
+            break;
+          }
+          // FR-MSG-10: троттлинг отправки по WS — те же лимиты, что и в REST.
+          const rl = L.allow(`chatmsg:${chat.id}:${user.id}`, 'chat-msg');
+          if (!rl.allowed) {
+            conn.send({ v: 1, t: 'error', ts: Date.now(), d: {
+              code: 'RATE_LIMITED',
+              message: rl.blocked
+                ? `отправка ограничена на ${rl.retryAfter} с: слишком много сообщений`
+                : `слишком много сообщений, повторите через ${rl.retryAfter} с`,
+              retry_after: rl.retryAfter,
+            } });
             break;
           }
           const e2ee = !!data.e2ee || !!chat.e2ee;

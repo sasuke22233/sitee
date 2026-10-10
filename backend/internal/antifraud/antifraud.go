@@ -31,6 +31,10 @@ var (
 	ProfileAdmin    = Profile{Name: "admin", LimitPerMin: 120, Burst: 40}
 	ProfileWSConn   = Profile{Name: "ws-connect", LimitPerMin: 5, Burst: 3, BlockAfter: 10, BlockFor: 10 * time.Minute}
 	ProfileWSMsg    = Profile{Name: "ws-msg", LimitPerMin: 60, Burst: 20}
+	// ProfileChatMsg — отправка сообщений в чат (FR-MSG-10): 100/мин,
+	// после 3 отказов подряд — мут на 30 минут.
+	ProfileChatMsg = Profile{Name: "chat-msg", LimitPerMin: 100, Burst: 30,
+		BlockAfter: 3, BlockFor: 30 * time.Minute}
 	ProfileRegister = Profile{Name: "register", LimitPerMin: 3, Burst: 3, BlockAfter: 3, BlockFor: 24 * time.Hour}
 	ProfileSearch   = Profile{Name: "search", LimitPerMin: 30, Burst: 10}
 )

@@ -294,6 +294,12 @@ POST /api/v1/disputes/{id}/appeal  { "reason":"…" }
 `avatar`, `country`, `city` второй стороны **отсутствуют**; вместо них — `visible_as`.
 Арбитр получает `reveal: true` и полные данные + запись в аудит (`dispute.reveal`).
 
+Доказательства: `POST /disputes/{id}/evidence {kind, text|data_b64, name}` (≤ 20 вложений,
+≤ 4 МБ, метаданные снимаются) и `GET /disputes/{id}/evidence/{evidenceId}` — отдаёт
+`{id, kind, name, sha256, size, meta_stripped, uploader_visible_as, text|data_b64}`.
+Участник видит только свои вложения, арбитр/модератор — все; просмотр арбитром пишется
+в аудит (`dispute.evidence_view`).
+
 ---
 
 ## 6. Мессенджер
@@ -331,6 +337,12 @@ POST /api/v1/chats/{id}/messages
 Для не-E2EE чатов клиент шлёт plaintext по WSS/HTTPS, сервер шифрует его через crypto-core
 (домен `msg`) и сохраняет ciphertext (FR-MSG-05).
 
+Троттлинг отправки (FR-MSG-10, профиль `chat-msg`): 100 сообщений в минуту на пользователя
+в чате, burst 30. При превышении — `429 RATE_LIMITED` с `Retry-After`; после 3 отказов подряд
+отправка автоматически ограничивается на 30 минут (`429`, сообщение «отправка ограничена…»).
+Ручной мут/блокировка участника модератором даёт `403 MUTED` / `403 BLOCKED`.
+Лимиты действуют одинаково для REST и WS-кадра `msg.send`.
+
 ### 6.4 E2EE-ключи
 | Метод | Путь | Тело |
 |---|---|---|
@@ -338,6 +350,7 @@ POST /api/v1/chats/{id}/messages
 | GET | `/e2ee/bundle/{user_id}?device_id=` | `{identity_pub, signed_prekey, one_time_key}` (одноразовый ключ изымается) |
 | POST | `/e2ee/sessions` | `{chat_id, to_user, to_device, ephemeral_pub, used_opk_id}` → `{session_id, safety_number}` |
 | GET | `/e2ee/sessions/{chat_id}` | список устройств/сессий, safety number |
+| GET | `/e2ee/safety/{user_id}` | `{safety_number, sessions[], instruction}` — визуальная сверка ключей с собеседником |
 
 ### 6.5 Каналы и группы
 `POST /channels/{id}/subscribe` · `DELETE …` · `POST /channels/{id}/posts` (админ) ·

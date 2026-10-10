@@ -130,6 +130,8 @@ const PROFILES = {
   register: scaleProfile({ rate: 3, burst: 3, blockAfter: 3, blockFor: 24 * 3600000 }),
   ws: scaleProfile({ rate: 5, burst: 3 }),
   wsmsg: scaleProfile({ rate: 60, burst: 20 }),
+  // FR-MSG-10: 100 сообщений в минуту в чат, после 3 отказов — мут на 30 минут.
+  'chat-msg': scaleProfile({ rate: 100, burst: 30, blockAfter: 3, blockFor: 30 * 60000 }),
 };
 const buckets = new Map();
 
