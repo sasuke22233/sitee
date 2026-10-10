@@ -105,6 +105,12 @@ func (s *Server) handleCreateOrder(w http.ResponseWriter, r *http.Request) {
 				fail = httpx.Unprocessable("PRODUCT_UNAVAILABLE", "товар недоступен: "+p.Title)
 				return
 			}
+			// FR-GEO-03(б): товар запрещённой категории нельзя купить в этой юрисдикции.
+			if cat := geoBlockedCategoryLocked(s.Store, []int64{p.CategoryID}, u.Country); cat != nil {
+				fail = httpx.Forbidden("GEO_BLOCKED",
+					"товар недоступен в стране "+u.Country+": категория «"+cat.NameRU+"»")
+				return
+			}
 			qty := line.Qty
 			if qty <= 0 {
 				qty = 1

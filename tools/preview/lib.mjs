@@ -372,6 +372,28 @@ export function maskEmail(email) {
   return `${name.slice(0, 2)}***@${domain}`;
 }
 
+// FR-GEO-03(б): категория запрещена в юрисдикции покупателя/продавца.
+// Возвращает первую заблокированную категорию или null.
+export function geoBlock(ctx, categoryIds, country) {
+  const code = String(country ?? '').toUpperCase();
+  if (!code) return null;
+  for (const id of categoryIds ?? []) {
+    const cat = ctx.db.categories.get(Number(id));
+    if (cat && (cat.blocked_countries ?? []).includes(code)) return cat;
+  }
+  return null;
+}
+
+// Все категории магазина, запрещённые в стране (для фильтра ленты).
+export function geoBlockedAll(ctx, categoryIds, country) {
+  const ids = (categoryIds ?? []).map(Number);
+  if (ids.length === 0) return false;
+  return ids.every((id) => {
+    const cat = ctx.db.categories.get(id);
+    return !!cat && (cat.blocked_countries ?? []).includes(String(country ?? '').toUpperCase());
+  });
+}
+
 export function isCrowned(ctx, shop) {
   if (shop.status !== 'active') return false;
   if (shop.sanction_level && shop.sanction_level !== 'none') return false;

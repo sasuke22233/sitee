@@ -516,6 +516,8 @@ func seedGeo(st *store.Store) {
 		{Code: "US", NameRU: "США", NameEN: "United States"},
 		{Code: "IN", NameRU: "Индия", NameEN: "India"},
 		{Code: "BR", NameRU: "Бразилия", NameEN: "Brazil"},
+		{Code: "CN", NameRU: "Китай", NameEN: "China"},
+		{Code: "IR", NameRU: "Иран", NameEN: "Iran"},
 	}
 	for _, c := range countries {
 		cc := c
@@ -550,6 +552,8 @@ func seedGeo(st *store.Store) {
 		{ID: 9501, Country: "US", NameRU: "Нью-Йорк", NameEN: "New York", TZ: "America/New_York", Population: 8300000},
 		{ID: 9601, Country: "IN", NameRU: "Мумбаи", NameEN: "Mumbai", TZ: "Asia/Kolkata", Population: 21000000},
 		{ID: 9701, Country: "BR", NameRU: "Сан-Паулу", NameEN: "Sao Paulo", TZ: "America/Sao_Paulo", Population: 12300000},
+		{ID: 9801, Country: "CN", NameRU: "Пекин", NameEN: "Beijing", TZ: "Asia/Shanghai", Population: 21500000},
+		{ID: 9802, Country: "IR", NameRU: "Тегеран", NameEN: "Tehran", TZ: "Asia/Tehran", Population: 9000000},
 	}
 	for _, c := range cities {
 		cc := c
@@ -567,10 +571,10 @@ func seedCategories(st *store.Store) {
 		{ID: 6, Slug: "education", NameRU: "Обучение и курсы", NameEN: "Education"},
 		{ID: 7, Slug: "design", NameRU: "Дизайн и графика", NameEN: "Design & graphics"},
 		{ID: 8, Slug: "music", NameRU: "Музыка и аудио", NameEN: "Music & audio"},
-		{ID: 9, Slug: "crypto-tools", NameRU: "Крипто-инструменты", NameEN: "Crypto tools", Restricted: true},
+		{ID: 9, Slug: "crypto-tools", NameRU: "Крипто-инструменты", NameEN: "Crypto tools", Restricted: true, BlockedIn: []string{"US"}},
 		{ID: 10, Slug: "services", NameRU: "Услуги", NameEN: "Services"},
 		{ID: 11, Slug: "files", NameRU: "Файлы и шаблоны", NameEN: "Files & templates"},
-		{ID: 12, Slug: "vpn-proxy", NameRU: "VPN и прокси", NameEN: "VPN & proxy"},
+		{ID: 12, Slug: "vpn-proxy", NameRU: "VPN и прокси", NameEN: "VPN & proxy", BlockedIn: []string{"CN", "IR"}},
 	}
 	for _, c := range cats {
 		cc := c

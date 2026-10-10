@@ -891,6 +891,122 @@ func (s *Server) handleAdminUpdateRentPlan(w http.ResponseWriter, r *http.Reques
 }
 
 // ---------------------------------------------------------------------------
+// Категории: справочник и чёрный список юрисдикций (FR-GEO-03б)
+// ---------------------------------------------------------------------------
+
+type categoryUpdateRequest struct {
+	BlockedCountries []string `json:"blocked_countries"`
+	Restricted       *bool    `json:"restricted"`
+	TotpCode         string   `json:"totp_code"`
+	Reason           string   `json:"reason"`
+}
+
+func (s *Server) handleAdminListCategories(w http.ResponseWriter, r *http.Request) {
+	if _, ok := s.adminRead(w, r); !ok {
+		return
+	}
+	items := []map[string]any{}
+	s.Store.Read(func() {
+		for id, cat := range s.Store.Categories {
+			shops := 0
+			for _, sh := range s.Store.Shops {
+				for _, cid := range sh.CategoryIDs {
+					if cid == id {
+						shops++
+						break
+					}
+				}
+			}
+			blocked := make([]string, 0, len(cat.BlockedIn))
+			blocked = append(blocked, cat.BlockedIn...)
+			items = append(items, map[string]any{
+				"id": cat.ID, "slug": cat.Slug, "name_ru": cat.NameRU, "name_en": cat.NameEN,
+				"restricted": cat.Restricted, "blocked_countries": blocked, "shops": shops,
+			})
+		}
+	})
+	sort.Slice(items, func(i, j int) bool { return inum(items[i]["id"]) < inum(items[j]["id"]) })
+	httpx.JSON(w, http.StatusOK, map[string]any{"items": items})
+}
+
+func (s *Server) handleAdminUpdateCategory(w http.ResponseWriter, r *http.Request) {
+	var req categoryUpdateRequest
+	if err := httpx.Decode(r, &req); err != nil {
+		httpx.Fail(w, r, err)
+		return
+	}
+	u, ok := s.adminWrite(w, r, "admin_write", req.TotpCode)
+	if !ok {
+		return
+	}
+	id, err := strconv.ParseInt(strings.TrimSpace(r.PathValue("id")), 10, 64)
+	if err != nil || id <= 0 {
+		httpx.Fail(w, r, httpx.BadRequest("некорректный id категории", nil))
+		return
+	}
+	if req.BlockedCountries == nil && req.Restricted == nil {
+		httpx.Fail(w, r, httpx.BadRequest("передайте blocked_countries или restricted", nil))
+		return
+	}
+	var (
+		fail   *httpx.APIError
+		before map[string]any
+		cat    *store.Category
+	)
+	s.Store.Write(func() {
+		existing := s.Store.Categories[id]
+		if existing == nil {
+			fail = httpx.NotFound("категория не найдена")
+			return
+		}
+		if req.BlockedCountries != nil {
+			for _, code := range req.BlockedCountries {
+				c := strings.ToUpper(strings.TrimSpace(code))
+				if c == "" {
+					continue
+				}
+				if _, known := s.Store.Countries[c]; !known {
+					fail = httpx.BadRequest("неизвестная страна: "+code, nil)
+					return
+				}
+			}
+		}
+		blocked := make([]string, 0, len(req.BlockedCountries))
+		seen := map[string]bool{}
+		for _, code := range req.BlockedCountries {
+			c := strings.ToUpper(strings.TrimSpace(code))
+			if c == "" || seen[c] {
+				continue
+			}
+			seen[c] = true
+			blocked = append(blocked, c)
+		}
+		before = map[string]any{"blocked_countries": existing.BlockedIn, "restricted": existing.Restricted}
+		if req.BlockedCountries != nil {
+			existing.BlockedIn = blocked
+		}
+		if req.Restricted != nil {
+			existing.Restricted = *req.Restricted
+		}
+		cat = existing
+		s.feedScoresLocked()
+	})
+	if fail != nil {
+		httpx.Fail(w, r, fail)
+		return
+	}
+	s.audit(r, u.ID, u.Role, "admin.category", "category", strconv.FormatInt(cat.ID, 10),
+		req.Reason, store.FactorOps, before,
+		map[string]any{"blocked_countries": cat.BlockedIn, "restricted": cat.Restricted})
+	blocked := make([]string, 0, len(cat.BlockedIn))
+	blocked = append(blocked, cat.BlockedIn...)
+	httpx.JSON(w, http.StatusOK, map[string]any{
+		"id": cat.ID, "slug": cat.Slug, "name_ru": cat.NameRU,
+		"restricted": cat.Restricted, "blocked_countries": blocked,
+	})
+}
+
+// ---------------------------------------------------------------------------
 // Споры: очередь арбитража и назначение (FR-DSP-06)
 // ---------------------------------------------------------------------------
 

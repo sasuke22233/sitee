@@ -397,6 +397,58 @@ async function main() {
   });
   check('слабый пароль отклонён', weakReg.status === 400);
 
+  console.log('\n9b. Гео-блокировка категорий (FR-GEO-03б)');
+  const geoCats = await call('GET', '/api/v1/admin/categories', { token: tokens.sitee_admin.access });
+  const vpnCat = geoCats.data.items.find((c) => c.slug === 'vpn-proxy');
+  check('админка: чёрный список юрисдикций', geoCats.status === 200 &&
+    vpnCat?.blocked_countries?.includes('IR') && vpnCat?.blocked_countries?.includes('CN'));
+  // Покупатель из Ирана не может ни открыть, ни купить VPN-товар.
+  const irNick = `smokeir${Date.now() % 100000}`;
+  const irReg = await call('POST', '/api/v1/auth/register', {
+    body: {
+      email: `${irNick}@example.com`, nickname: irNick, password: 'Str0ng#Pass2026', password_confirm: 'Str0ng#Pass2026',
+      country_code: 'IR', city_id: 9002, accept_terms: true, is_18plus: true, locale: 'ru', captcha_token: 'dev',
+    },
+  });
+  check('регистрация покупателя из IR', irReg.status === 201);
+  const irVerify = await call('POST', '/api/v1/auth/verify-contact', {
+    body: { enrollment_id: irReg.data.enrollment_id, code: irReg.data.dev_code },
+  });
+  check('контакт подтверждён (IR)', irVerify.status === 200 && irVerify.data.next === '2fa_setup');
+  const irSetup = await call('POST', '/api/v1/auth/2fa/setup', { body: { factor: 'login', enrollment_id: irReg.data.enrollment_id } });
+  check('2FA setup для IR', irSetup.status === 200 && !!irSetup.data.dev_codes, JSON.stringify(irSetup.data).slice(0, 160));
+  const irAct = await call('POST', '/api/v1/auth/2fa/activate', {
+    body: { factor: 'login', enrollment_id: irReg.data.enrollment_id, code1: irSetup.data.dev_codes[0], code2: irSetup.data.dev_codes[1] },
+  });
+  check('2FA активирован → сессия', irAct.status === 200 && !!irAct.data.access_token);
+    const proxyShop = (await call('GET', '/api/v1/shops', { token: tokens.sitee_admin.access })).data.items
+    .find((sh) => sh.slug === 'proxy-nord');
+  const vpnItems = (await call('GET', `/api/v1/shops/${proxyShop.id}/products`, { token: irAct.data.access_token })).data.items;
+  check('VPN-товары скрыты для IR', vpnItems.length === 0);
+  const adminVpnItems = (await call('GET', `/api/v1/shops/${proxyShop.id}/products`, { token: tokens.sitee_admin.access })).data.items;
+  check('админ магазина видит те же товары', adminVpnItems.filter((p) => p.category_id === 12).length === 2);
+  const anyVpn = adminVpnItems.find((p) => p.category_id === 12);
+  const blockedView = await call('GET', `/api/v1/products/${anyVpn.id}`, { token: irAct.data.access_token });
+  check('товар заблокированной категории → 403 GEO_BLOCKED',
+    blockedView.status === 403 && blockedView.data.error?.code === 'GEO_BLOCKED');
+  const blockedOrder = await call('POST', '/api/v1/orders', {
+    token: irAct.data.access_token, body: { product_id: anyVpn.id, qty: 1, asset: 'SOL' },
+  });
+  check('заказ заблокированной категории → 403 GEO_BLOCKED',
+    blockedOrder.status === 403 && blockedOrder.data.error?.code === 'GEO_BLOCKED');
+  // Админ снимает запрет — товар снова доступен.
+  const patch = await call('PATCH', `/api/v1/admin/categories/${vpnCat.id}`, {
+    token: tokens.sitee_admin.access,
+    body: { blocked_countries: ['CN'], totp_code: await opsCode('sitee_admin'), reason: 'смоук: снятие запрета для IR' },
+  });
+  check('админ снял IR из чёрного списка', patch.status === 200 && !patch.data.blocked_countries.includes('IR'));
+  const allowedView = await call('GET', `/api/v1/products/${anyVpn.id}`, { token: irAct.data.access_token });
+  check('после снятия запрета товар открывается', allowedView.status === 200);
+  // Возвращаем запрет обратно, чтобы демо-данные не менялись.
+  await call('PATCH', `/api/v1/admin/categories/${vpnCat.id}`, {
+    token: tokens.sitee_admin.access, body: { blocked_countries: ['CN', 'IR'], totp_code: await opsCode('sitee_admin') },
+  });
+
   console.log('\n10. Анти-брутфорс и rate limit');
   for (let i = 0; i < 6; i += 1) {
     await call('POST', '/api/v1/auth/login', { body: { identifier: `${nick}@example.com`, password: 'bad', device: {} } });

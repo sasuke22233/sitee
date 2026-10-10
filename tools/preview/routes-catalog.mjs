@@ -6,6 +6,7 @@ import {
   ok, created, paginate, truncate,
   requireAuth, requireOps, audit, notify, push,
   shopCard, shopDetail, productDto, isCrowned, rentStatus, feeBps, recalcFeedScores, rentPlanList,
+  geoBlock, geoBlockedAll,
 } from './lib.mjs';
 import {
   findShop, planByCode, shopCount, ensureShopChannel, addMember, systemMessage,
@@ -46,6 +47,8 @@ export function catalogRoutes(ctx) {
     let items = [...ctx.db.shops.values()].filter((shop) => {
       if (shop.status !== 'active') return false;
       if (rentStatus(ctx, shop.id) === 'suspended') return false; // FR-SHOP-08
+      // FR-GEO-03(б): если все категории магазина запрещены в стране зрителя — скрываем.
+      if (viewer && geoBlockedAll(ctx, shop.category_ids, viewer.country)) return false;
       if (q) {
         const hay = `${shop.name} ${shop.slug} ${shop.description} ${(shop.category_ids ?? []).join(' ')}`.toLowerCase();
         if (!hay.includes(q)) return false;
@@ -114,6 +117,8 @@ export function catalogRoutes(ctx) {
     if (categories.length === 0) throw bad('выберите хотя бы одну категорию');
     const restricted = categories.some((id) => ctx.db.categories.get(id)?.restricted);
     if (restricted && !auth.user.is_18plus) throw forbidden('AGE_RESTRICTED', 'категория доступна только 18+');
+    const geo = geoBlock(ctx, categories, country);
+    if (geo) throw forbidden('GEO_BLOCKED', `категория «${geo.name_ru}» недоступна в стране ${country}`);
 
     const id = C.newId('shp');
     const now = new Date().toISOString();
@@ -364,6 +369,7 @@ export function catalogRoutes(ctx) {
   // Товары и зашифрованный сток (FR-PROD-*)
   // ------------------------------------------------------------------
   routes.push(['GET', '/api/v1/shops/:id/products', (r) => {
+    // FR-GEO-03(б): товары запрещённых категорий не отдаём покупателю этой страны.
     const shop = findShop(ctx, r.params.id);
     if (!shop) throw notFound('магазин не найден');
     const viewer = r.auth?.user ?? null;
@@ -375,6 +381,9 @@ export function catalogRoutes(ctx) {
     if (!isOwner) items = items.filter((p) => p.status === 'published');
     if (kind) items = items.filter((p) => p.kind === kind);
     if (q) items = items.filter((p) => `${p.title} ${p.description}`.toLowerCase().includes(q));
+    if (viewer && !isOwner) {
+      items = items.filter((p) => !geoBlock(ctx, [p.category_id], viewer.country));
+    }
     items.sort((a, b) => b.created_at.localeCompare(a.created_at));
     const page = paginate(items.map((p) => productDto(ctx, p, viewer)), limit, r.query.cursor);
     return ok({ ...page, shop_id: shop.id, shop_name: shop.name, rent_status: rentStatus(ctx, shop.id) });
@@ -400,6 +409,8 @@ export function catalogRoutes(ctx) {
       ? Number(b.category_id) : Number(shop.category_ids?.[0] ?? 0);
     const category = ctx.db.categories.get(categoryId);
     if (!category) throw bad('выберите категорию товара');
+    const geo = geoBlock(ctx, [categoryId], shop.country);
+    if (geo) throw forbidden('GEO_BLOCKED', `категория «${geo.name_ru}» недоступна в стране ${shop.country}`);
     const priceSol = C.parseSol(String(b.price_sol ?? '0'));
     const priceStars = Math.max(0, Number(b.price_stars ?? 0));
     if (priceSol <= 0 && priceStars <= 0) throw bad('укажите цену в SOL или Stars');
@@ -440,6 +451,10 @@ export function catalogRoutes(ctx) {
     const shop = ctx.db.shops.get(product.shop_id);
     if (product.status !== 'published' && !(viewer && shop?.admin_user_id === viewer.id)) {
       throw notFound('товар не найден');
+    }
+    if (viewer) {
+      const geo = geoBlock(ctx, [product.category_id], viewer.country);
+      if (geo) throw forbidden('GEO_BLOCKED', `товар недоступен в стране ${viewer.country}: категория «${geo.name_ru}»`);
     }
     const items = ctx.db.stock.get(product.id) ?? [];
     return ok({

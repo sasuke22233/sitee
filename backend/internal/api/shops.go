@@ -18,6 +18,53 @@ import (
 // Лента магазинов и поиск (FR-FEED-01…06)
 // ---------------------------------------------------------------------------
 
+// geoBlockedCategoryLocked — первая категория из списка, запрещённая в стране
+// (FR-GEO-03б). Вызывать внутри Store.Read/Write.
+func geoBlockedCategoryLocked(st *store.Store, ids []int64, country string) *store.Category {
+	if country == "" {
+		return nil
+	}
+	code := strings.ToUpper(country)
+	for _, id := range ids {
+		cat, ok := st.Categories[id]
+		if !ok {
+			continue
+		}
+		for _, blocked := range cat.BlockedIn {
+			if strings.EqualFold(blocked, code) {
+				return cat
+			}
+		}
+	}
+	return nil
+}
+
+// geoAllBlockedLocked — true, если все категории магазина запрещены в стране
+// зрителя (магазин скрывается из ленты, FR-GEO-03б).
+func geoAllBlockedLocked(st *store.Store, ids []int64, country string) bool {
+	if country == "" || len(ids) == 0 {
+		return false
+	}
+	code := strings.ToUpper(country)
+	for _, id := range ids {
+		cat, ok := st.Categories[id]
+		if !ok {
+			return false
+		}
+		blocked := false
+		for _, b := range cat.BlockedIn {
+			if strings.EqualFold(b, code) {
+				blocked = true
+				break
+			}
+		}
+		if !blocked {
+			return false
+		}
+	}
+	return true
+}
+
 func (s *Server) handleListShops(w http.ResponseWriter, r *http.Request) {
 	q := r.URL.Query()
 	search := strings.ToLower(strings.TrimSpace(q.Get("q")))
@@ -62,6 +109,10 @@ func (s *Server) handleListShops(w http.ResponseWriter, r *http.Request) {
 				continue
 			}
 			if search != "" && !shopMatchesLocked(s.Store, sh, search) {
+				continue
+			}
+			// FR-GEO-03(б): все категории запрещены в стране зрителя — скрываем.
+			if geoAllBlockedLocked(s.Store, sh.CategoryIDs, viewerCountry) {
 				continue
 			}
 			card := s.shopCardLocked(sh, viewerCountry)
@@ -284,6 +335,12 @@ func (s *Server) handleCreateShop(w http.ResponseWriter, r *http.Request) {
 	s.Store.Write(func() {
 		if _, dup := s.Store.ShopsBySlug[shop.Slug]; dup {
 			fail = httpx.Conflict("ALREADY_USED", "slug занят")
+			return
+		}
+		// FR-GEO-03(б): категория недоступна в юрисдикции продавца.
+		if cat := geoBlockedCategoryLocked(s.Store, shop.CategoryIDs, shop.Country); cat != nil {
+			fail = httpx.Forbidden("GEO_BLOCKED",
+				"категория «"+cat.NameRU+"» недоступна в стране "+shop.Country)
 			return
 		}
 		s.Store.Shops[shop.ID] = shop
@@ -764,6 +821,10 @@ func (s *Server) handleListProducts(w http.ResponseWriter, r *http.Request) {
 				!strings.Contains(strings.ToLower(p.Description), search) {
 				continue
 			}
+			// FR-GEO-03(б): товар запрещённой категории не отдаём покупателю страны.
+			if !isOwner && geoBlockedCategoryLocked(s.Store, []int64{p.CategoryID}, countryOf(u)) != nil {
+				continue
+			}
 			items = append(items, s.productDTOLocked(p))
 		}
 	})
@@ -793,6 +854,12 @@ func (s *Server) handleGetProduct(w http.ResponseWriter, r *http.Request) {
 				fail = httpx.NotFound("товар не найден")
 				return
 			}
+		}
+		// FR-GEO-03(б): запрещённая в стране покупателя категория — отказ.
+		if cat := geoBlockedCategoryLocked(s.Store, []int64{p.CategoryID}, countryOf(u)); cat != nil {
+			fail = httpx.Forbidden("GEO_BLOCKED",
+				"товар недоступен в стране "+countryOf(u)+": категория «"+cat.NameRU+"»")
+			return
 		}
 		dto = s.productDTOLocked(p)
 		if sh, ok := s.Store.Shops[p.ShopID]; ok {
@@ -872,6 +939,12 @@ func (s *Server) handleCreateProduct(w http.ResponseWriter, r *http.Request) {
 		}
 		if rent := s.Store.RentStatusLocked(sh.ID); rent == store.RentSuspended || rent == store.RentNone {
 			fail = httpx.Unprocessable("RENT_REQUIRED", "оплатите аренду магазина, чтобы добавлять товары")
+			return
+		}
+		// FR-GEO-03(б): категория товара недоступна в стране магазина.
+		if cat := geoBlockedCategoryLocked(s.Store, []int64{req.CategoryID}, sh.Country); cat != nil {
+			fail = httpx.Forbidden("GEO_BLOCKED",
+				"категория «"+cat.NameRU+"» недоступна в стране "+sh.Country)
 			return
 		}
 		if sub, ok := s.Store.Subs[sh.ID]; ok {

@@ -442,7 +442,37 @@ PATCH /api/v1/reviews/{id}           // автор, ≤ 7 сут
 | POST | `/admin/security/ip-ban` | `{cidr, until, reason}` |
 | GET | `/admin/audit?object_type=&object_id=&cursor=` | неизменяемый аудит-лог |
 | GET/PATCH | `/admin/settings/{key}` | пороги, лимиты, курс, фиче-флаги |
-| GET/POST/PATCH | `/admin/geo/*` | страны, города, гео-блокировки категорий |
+| GET | `/admin/categories` | справочник категорий: 18+, чёрный список юрисдикций, число магазинов |
+| PATCH | `/admin/categories/{id}` | `{blocked_countries:[...], restricted, totp_code, reason}` — гео-блокировки (FR-GEO-03б) |
+
+### 9.0 Гео-блокировки категорий (FR-GEO-03б)
+
+Чёрный список юрисдикций настраивается на категорию. Запрещённая категория
+не отдаётся и не продаётся в стране покупателя или продавца:
+
+```jsonc
+// GET /api/v1/admin/categories → элемент items
+{ "id": 12, "slug": "vpn-proxy", "name_ru": "VPN и прокси", "restricted": false,
+  "blocked_countries": ["CN", "IR"], "shops": 1 }
+
+// PATCH /api/v1/admin/categories/12   (superadmin + фактор ops)
+{ "blocked_countries": ["CN"], "totp_code": "123456", "reason": "снятие запрета для IR" }
+→ { "id": 12, "slug": "vpn-proxy", "name_ru": "VPN и прокси",
+    "restricted": false, "blocked_countries": ["CN"] }
+```
+
+Поведение (одинаковое в Go-бэкенде и в Node-прототипе):
+
+| Ситуация | Ответ |
+|---|---|
+| Все категории магазина запрещены в стране зрителя | магазин скрыт из ленты `GET /shops` |
+| Товар запрещённой категории в списке товаров магазина | позиция не отдаётся (кроме владельца) |
+| `GET /products/{id}` из запрещённой страны | `403 GEO_BLOCKED` |
+| `POST /orders` с товаром запрещённой категории | `403 GEO_BLOCKED` |
+| Создание магазина/товара в запрещённой юрисдикции | `403 GEO_BLOCKED` |
+
+Коды стран — ISO 3166-1 alpha-2 из справочника `GET /api/v1/geo/countries`;
+неизвестный код отклоняется с `400 VALIDATION`.
 
 ### 9.1 CRUD подарков — детально (FR-STR-04)
 ```jsonc

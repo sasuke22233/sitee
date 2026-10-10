@@ -304,12 +304,12 @@ paths:
               schema: { $ref: '#/components/schemas/ShopDetail' }
         '403': { $ref: '#/components/responses/TotpRequired' }
 
-  /shops/{shopId}:
+  /shops/{id}:
     get:
       tags: [shops]
       operationId: getShop
       security: []
-      parameters: [ { $ref: '#/components/parameters/ShopId' } ]
+      parameters: [ { $ref: '#/components/parameters/PathId' } ]
       responses:
         '200':
           description: Карточка магазина
@@ -317,44 +317,36 @@ paths:
             application/json:
               schema: { $ref: '#/components/schemas/ShopDetail' }
         '404': { $ref: '#/components/responses/NotFound' }
-
-  /shops/{shopId}/rent:
-    get:
-      tags: [rent]
-      operationId: getShopRent
-      parameters: [ { $ref: '#/components/parameters/ShopId' } ]
-      responses:
-        '200':
-          description: Текущая подписка
-          content:
-            application/json:
-              schema: { $ref: '#/components/schemas/RentSubscription' }
-    post:
-      tags: [rent]
-      operationId: subscribeRent
-      summary: Оплата аренды магазина (FR-SHOP-04…06)
-      parameters: [ { $ref: '#/components/parameters/ShopId' } ]
+    patch:
+      tags: [shops]
+      operationId: updateShop
+      summary: Изменение магазина (FR-SHOP-03)
+      security: [ { bearerAuth: [] } ]
+      parameters: [ { $ref: '#/components/parameters/PathId' } ]
       requestBody:
-        required: true
+        required: false
         content:
           application/json:
             schema:
               type: object
-              required: [plan_code, asset, totp_code]
               properties:
-                plan_code: { type: string, enum: [starter, pro, crown, enterprise] }
-                asset: { $ref: '#/components/schemas/Asset' }
-                months: { type: integer, minimum: 1, maximum: 12, default: 1 }
-                auto_renew: { type: boolean, default: true }
-                totp_code: { type: string, pattern: '^[0-9]{6}$' }
+                name: { type: string }
+                description: { type: string }
+                accepts_stars: { type: boolean }
+                cover_url: { type: string }
+                auto_renew: { type: boolean }
       responses:
-        '201':
-          description: Аренда оплачена
+        '200':
+          description: Обновлённый магазин
           content:
             application/json:
-              schema: { $ref: '#/components/schemas/RentSubscription' }
-        '403': { $ref: '#/components/responses/TotpRequired' }
-        '422': { $ref: '#/components/responses/InsufficientFunds' }
+              schema: { $ref: '#/components/schemas/ShopDetail' }
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/ConflictError' }
+        '429': { $ref: '#/components/responses/RateLimited' }
 
   /rent/plans:
     get:
@@ -371,44 +363,6 @@ paths:
                   items:
                     type: array
                     items: { $ref: '#/components/schemas/RentPlan' }
-
-  /shops/{shopId}/products:
-    get:
-      tags: [products]
-      operationId: listProducts
-      security: []
-      parameters:
-        - { $ref: '#/components/parameters/ShopId' }
-        - { name: q, in: query, schema: { type: string } }
-        - { name: cursor, in: query, schema: { type: string } }
-        - { name: limit, in: query, schema: { type: integer, maximum: 50 } }
-      responses:
-        '200':
-          description: Витрина товаров
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  items:
-                    type: array
-                    items: { $ref: '#/components/schemas/Product' }
-                  next_cursor: { type: [string, 'null'] }
-    post:
-      tags: [products]
-      operationId: createProduct
-      parameters: [ { $ref: '#/components/parameters/ShopId' } ]
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema: { $ref: '#/components/schemas/ProductCreate' }
-      responses:
-        '201':
-          description: Товар создан (статус moderation/published)
-          content:
-            application/json:
-              schema: { $ref: '#/components/schemas/Product' }
 
   /orders:
     get:
@@ -447,103 +401,17 @@ paths:
               schema: { $ref: '#/components/schemas/Order' }
         '422': { $ref: '#/components/responses/StockEmpty' }
 
-  /orders/{orderId}:
+  /orders/{id}:
     get:
       tags: [orders]
       operationId: getOrder
-      parameters: [ { $ref: '#/components/parameters/OrderId' } ]
+      parameters: [ { $ref: '#/components/parameters/PathId' } ]
       responses:
         '200':
           description: Заказ с таймлайном и доступными действиями
           content:
             application/json:
               schema: { $ref: '#/components/schemas/Order' }
-
-  /orders/{orderId}/pay:
-    post:
-      tags: [orders]
-      operationId: payOrder
-      parameters: [ { $ref: '#/components/parameters/OrderId' } ]
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              required: [asset]
-              properties:
-                asset: { $ref: '#/components/schemas/Asset' }
-                totp_code: { type: string, pattern: '^[0-9]{6}$' }
-      responses:
-        '200':
-          description: Оплачено, средства в эскроу
-          content:
-            application/json:
-              schema: { $ref: '#/components/schemas/Order' }
-        '403': { $ref: '#/components/responses/TotpRequired' }
-        '409': { $ref: '#/components/responses/InvalidTransition' }
-        '422': { $ref: '#/components/responses/InsufficientFunds' }
-
-  /orders/{orderId}/confirm:
-    post:
-      tags: [orders]
-      operationId: confirmOrder
-      parameters: [ { $ref: '#/components/parameters/OrderId' } ]
-      responses:
-        '200':
-          description: Заказ завершён, эскроу раскрыто
-          content:
-            application/json:
-              schema: { $ref: '#/components/schemas/Order' }
-
-  /orders/{orderId}/dispute:
-    post:
-      tags: [disputes]
-      operationId: openDispute
-      summary: Открыть спор (FR-DSP-01)
-      parameters: [ { $ref: '#/components/parameters/OrderId' } ]
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema: { $ref: '#/components/schemas/DisputeCreate' }
-      responses:
-        '201':
-          description: Спор открыт, создан чат с маскировкой
-          content:
-            application/json:
-              schema: { $ref: '#/components/schemas/Dispute' }
-
-  /disputes/{disputeId}/escalate:
-    post:
-      tags: [disputes]
-      operationId: escalateDispute
-      summary: Пригласить админа-арбитра (FR-DSP-04)
-      parameters: [ { $ref: '#/components/parameters/DisputeId' } ]
-      responses:
-        '200':
-          description: Спор в арбитраже
-          content:
-            application/json:
-              schema: { $ref: '#/components/schemas/Dispute' }
-
-  /disputes/{disputeId}/resolve:
-    post:
-      tags: [disputes]
-      operationId: resolveDispute
-      summary: Решение арбитра (FR-DSP-05), требует фактор ops
-      parameters: [ { $ref: '#/components/parameters/DisputeId' } ]
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema: { $ref: '#/components/schemas/DisputeResolve' }
-      responses:
-        '200':
-          description: Решение исполнено атомарно в ledger
-          content:
-            application/json:
-              schema: { $ref: '#/components/schemas/Dispute' }
 
   /chats:
     get:
@@ -586,42 +454,6 @@ paths:
           content:
             application/json:
               schema: { $ref: '#/components/schemas/ChatDetail' }
-
-  /chats/{chatId}/messages:
-    get:
-      tags: [chats]
-      operationId: listMessages
-      parameters:
-        - { $ref: '#/components/parameters/ChatId' }
-        - { name: before_seq, in: query, schema: { type: integer } }
-        - { name: limit, in: query, schema: { type: integer, maximum: 100, default: 50 } }
-      responses:
-        '200':
-          description: История сообщений (тела — ciphertext)
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  items:
-                    type: array
-                    items: { $ref: '#/components/schemas/Message' }
-                  has_more: { type: boolean }
-    post:
-      tags: [chats]
-      operationId: sendMessage
-      parameters: [ { $ref: '#/components/parameters/ChatId' } ]
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema: { $ref: '#/components/schemas/MessageSend' }
-      responses:
-        '201':
-          description: Сообщение принято (шифруется и рассылается по WS)
-          content:
-            application/json:
-              schema: { $ref: '#/components/schemas/Message' }
 
   /wallet:
     get:
@@ -715,41 +547,6 @@ paths:
                     type: array
                     items: { $ref: '#/components/schemas/Gift' }
 
-  /gifts/{giftId}/buy:
-    post:
-      tags: [gifts]
-      operationId: buyGift
-      parameters: [ { name: giftId, in: path, required: true, schema: { type: string } } ]
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema: { $ref: '#/components/schemas/GiftBuy' }
-      responses:
-        '201':
-          description: Подарок куплен и доставлен получателю
-          content:
-            application/json:
-              schema: { $ref: '#/components/schemas/GiftPurchase' }
-
-  /orders/{orderId}/review:
-    post:
-      tags: [reviews]
-      operationId: createReview
-      parameters: [ { $ref: '#/components/parameters/OrderId' } ]
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema: { $ref: '#/components/schemas/ReviewCreate' }
-      responses:
-        '201':
-          description: Отзыв опубликован
-          content:
-            application/json:
-              schema: { $ref: '#/components/schemas/Review' }
-        '409': { $ref: '#/components/responses/ConflictError' }
-
   /admin/gifts:
     get:
       tags: [admin]
@@ -782,29 +579,6 @@ paths:
               schema: { $ref: '#/components/schemas/Gift' }
         '403': { $ref: '#/components/responses/TotpRequired' }
 
-  /admin/gifts/{giftId}:
-    patch:
-      tags: [admin]
-      operationId: adminUpdateGift
-      parameters: [ { name: giftId, in: path, required: true, schema: { type: string } } ]
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema: { $ref: '#/components/schemas/GiftAdmin' }
-      responses:
-        '200':
-          description: Обновлено (diff в аудит)
-          content:
-            application/json:
-              schema: { $ref: '#/components/schemas/Gift' }
-    delete:
-      tags: [admin]
-      operationId: adminArchiveGift
-      parameters: [ { name: giftId, in: path, required: true, schema: { type: string } } ]
-      responses:
-        '204': { description: Архивирован }
-
   /admin/dashboard:
     get:
       tags: [admin]
@@ -816,6 +590,1437 @@ paths:
             application/json:
               schema: { $ref: '#/components/schemas/AdminDashboard' }
 
+  /admin/audit:
+    get:
+      tags: [admin]
+      operationId: adminAudit
+      summary: Неизменяемый аудит-лог с хэш-цепочкой
+      security: [ { bearerAuth: [] } ]
+      responses:
+        '200':
+          description: OK
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+
+  /admin/categories:
+    get:
+      tags: [admin]
+      operationId: adminListCategories
+      summary: "Категории: 18+ и чёрный список юрисдикций"
+      security: [ { bearerAuth: [] } ]
+      responses:
+        '200':
+          description: OK
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+
+  /admin/categories/{id}:
+    patch:
+      tags: [admin]
+      operationId: adminUpdateCategory
+      summary: Изменение гео-блокировок категории
+      security: [ { bearerAuth: [] } ]
+      parameters: [ { $ref: '#/components/parameters/PathId' } ]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [blocked_countries, restricted, totp_code, reason]
+              properties:
+                blocked_countries: { type: array, items: { type: string } }
+                restricted: { type: boolean }
+                totp_code: { type: string }
+                reason: { type: string }
+      responses:
+        '200':
+          description: OK
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '409': { $ref: '#/components/responses/ConflictError' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+
+  /admin/disputes:
+    get:
+      tags: [admin]
+      operationId: adminListDisputes
+      summary: Очередь споров
+      security: [ { bearerAuth: [] } ]
+      responses:
+        '200':
+          description: OK
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+
+  /admin/disputes/{id}/assign:
+    post:
+      tags: [admin]
+      operationId: adminAssignDispute
+      summary: Назначение арбитра на спор
+      security: [ { bearerAuth: [] } ]
+      parameters: [ { $ref: '#/components/parameters/PathId' } ]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [arbiter_id]
+              properties:
+                arbiter_id: { type: string }
+      responses:
+        '201':
+          description: Создано
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '409': { $ref: '#/components/responses/ConflictError' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+
+  /admin/finance/reconciliation:
+    get:
+      tags: [admin]
+      operationId: adminReconciliation
+      summary: Сверка ledger и Solana
+      security: [ { bearerAuth: [] } ]
+      responses:
+        '200':
+          description: OK
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+
+  /admin/gifts/{id}:
+    patch:
+      tags: [admin]
+      operationId: adminUpdateGift
+      summary: handleAdminUpdateGift
+      security: [ { bearerAuth: [] } ]
+      parameters: [ { $ref: '#/components/parameters/PathId' } ]
+      responses:
+        '200':
+          description: OK
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '409': { $ref: '#/components/responses/ConflictError' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+    delete:
+      tags: [admin]
+      operationId: adminArchiveGift
+      summary: handleAdminArchiveGift
+      security: [ { bearerAuth: [] } ]
+      parameters: [ { $ref: '#/components/parameters/PathId' } ]
+      responses:
+        '200':
+          description: OK
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '409': { $ref: '#/components/responses/ConflictError' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+
+  /admin/moderation/products:
+    get:
+      tags: [admin]
+      operationId: adminModerationQueue
+      summary: Очередь модерации товаров
+      security: [ { bearerAuth: [] } ]
+      responses:
+        '200':
+          description: OK
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+
+  /admin/moderation/products/{id}/approve:
+    post:
+      tags: [admin]
+      operationId: adminApproveProduct
+      summary: Одобрение товара
+      security: [ { bearerAuth: [] } ]
+      parameters: [ { $ref: '#/components/parameters/PathId' } ]
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                note: { type: string }
+      responses:
+        '201':
+          description: Создано
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '409': { $ref: '#/components/responses/ConflictError' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+
+  /admin/moderation/products/{id}/reject:
+    post:
+      tags: [admin]
+      operationId: adminRejectProduct
+      summary: Отклонение товара
+      security: [ { bearerAuth: [] } ]
+      parameters: [ { $ref: '#/components/parameters/PathId' } ]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [note]
+              properties:
+                note: { type: string }
+      responses:
+        '201':
+          description: Создано
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '409': { $ref: '#/components/responses/ConflictError' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+
+  /admin/orders:
+    get:
+      tags: [admin]
+      operationId: adminListOrders
+      summary: Поиск заказов
+      security: [ { bearerAuth: [] } ]
+      responses:
+        '200':
+          description: OK
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+
+  /admin/orders/{id}/status:
+    patch:
+      tags: [admin]
+      operationId: adminSetOrderStatus
+      summary: Ручная смена статуса заказа
+      security: [ { bearerAuth: [] } ]
+      parameters: [ { $ref: '#/components/parameters/PathId' } ]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [status, reason, totp_code]
+              properties:
+                status: { type: string }
+                reason: { type: string }
+                totp_code: { type: string }
+      responses:
+        '200':
+          description: OK
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '409': { $ref: '#/components/responses/ConflictError' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+
+  /admin/rent/plans:
+    get:
+      tags: [admin]
+      operationId: adminRentPlans
+      summary: Тарифы аренды (админ)
+      security: [ { bearerAuth: [] } ]
+      responses:
+        '200':
+          description: OK
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+
+  /admin/rent/plans/{id}:
+    patch:
+      tags: [admin]
+      operationId: adminUpdateRentPlan
+      summary: Изменение тарифа аренды
+      security: [ { bearerAuth: [] } ]
+      parameters: [ { $ref: '#/components/parameters/PathId' } ]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name_ru, price_sol, fee_bps, product_limit, grants_crown, active, totp_code]
+              properties:
+                name_ru: { type: string }
+                price_sol: { type: string }
+                fee_bps: { type: integer }
+                product_limit: { type: integer }
+                grants_crown: { type: boolean }
+                active: { type: boolean }
+                totp_code: { type: string }
+      responses:
+        '200':
+          description: OK
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '409': { $ref: '#/components/responses/ConflictError' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+
+  /admin/security/events:
+    get:
+      tags: [admin]
+      operationId: adminSecurityEvents
+      summary: События безопасности
+      security: [ { bearerAuth: [] } ]
+      responses:
+        '200':
+          description: OK
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+
+  /admin/security/ip-ban:
+    post:
+      tags: [admin]
+      operationId: adminIPBan
+      summary: Блокировка IP/CIDR
+      security: [ { bearerAuth: [] } ]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [cidr, until, reason, totp_code]
+              properties:
+                cidr: { type: string }
+                until: { type: string, format: date-time }
+                reason: { type: string }
+                totp_code: { type: string }
+      responses:
+        '201':
+          description: Создано
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '409': { $ref: '#/components/responses/ConflictError' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+
+  /admin/settings:
+    get:
+      tags: [admin]
+      operationId: adminListSettings
+      summary: Настройки площадки
+      security: [ { bearerAuth: [] } ]
+      responses:
+        '200':
+          description: OK
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+
+  /admin/settings/{key}:
+    patch:
+      tags: [admin]
+      operationId: adminSetSetting
+      summary: Изменение настройки
+      security: [ { bearerAuth: [] } ]
+      parameters: [ { $ref: '#/components/parameters/PathKey' } ]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [value, reason, totp_code]
+              properties:
+                value: {}
+                reason: { type: string }
+                totp_code: { type: string }
+      responses:
+        '200':
+          description: OK
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '409': { $ref: '#/components/responses/ConflictError' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+
+  /admin/shops:
+    get:
+      tags: [admin]
+      operationId: adminListShops
+      summary: Список магазинов для модерации
+      security: [ { bearerAuth: [] } ]
+      responses:
+        '200':
+          description: OK
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+
+  /admin/shops/{id}/rent/extend:
+    post:
+      tags: [admin]
+      operationId: adminRentExtend
+      summary: Ручное продление аренды
+      security: [ { bearerAuth: [] } ]
+      parameters: [ { $ref: '#/components/parameters/PathId' } ]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [days, reason, totp_code]
+              properties:
+                days: { type: integer }
+                reason: { type: string }
+                totp_code: { type: string }
+      responses:
+        '201':
+          description: Создано
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '409': { $ref: '#/components/responses/ConflictError' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+
+  /admin/shops/{id}/sanction:
+    post:
+      tags: [admin]
+      operationId: adminSanction
+      summary: Санкция магазину
+      security: [ { bearerAuth: [] } ]
+      parameters: [ { $ref: '#/components/parameters/PathId' } ]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [level, reason, until, totp_code]
+              properties:
+                level: { type: string, enum: [warn, restrict, suspend, ban] }
+                reason: { type: string }
+                until: { type: string, format: date-time }
+                totp_code: { type: string }
+      responses:
+        '201':
+          description: Создано
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '409': { $ref: '#/components/responses/ConflictError' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+
+  /admin/shops/{id}/verified:
+    post:
+      tags: [admin]
+      operationId: adminVerified
+      summary: Присвоение знака «проверенный»
+      security: [ { bearerAuth: [] } ]
+      parameters: [ { $ref: '#/components/parameters/PathId' } ]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [value, totp_code]
+              properties:
+                value: { type: boolean }
+                totp_code: { type: string }
+      responses:
+        '201':
+          description: Создано
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '409': { $ref: '#/components/responses/ConflictError' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+
+  /admin/users:
+    get:
+      tags: [admin]
+      operationId: adminListUsers
+      summary: Список пользователей
+      security: [ { bearerAuth: [] } ]
+      responses:
+        '200':
+          description: OK
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+
+  /admin/users/{id}:
+    patch:
+      tags: [admin]
+      operationId: adminUpdateUser
+      summary: Изменение пользователя (роль, статус, 2FA-reset)
+      security: [ { bearerAuth: [] } ]
+      parameters: [ { $ref: '#/components/parameters/PathId' } ]
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                role: { type: string }
+                status: { type: string }
+                totp_code: { type: string }
+                reason: { type: string }
+      responses:
+        '200':
+          description: OK
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '409': { $ref: '#/components/responses/ConflictError' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+
+  /auth/events:
+    get:
+      tags: [auth]
+      operationId: authEvents
+      summary: Журнал событий безопасности аккаунта
+      security: [ { bearerAuth: [] } ]
+      responses:
+        '200':
+          description: OK
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+
+  /auth/logout:
+    post:
+      tags: [auth]
+      operationId: logout
+      summary: Выход, отзыв refresh-токена
+      security: [ { bearerAuth: [] } ]
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                refresh_token: { type: string }
+                all_devices: { type: boolean, default: false }
+      responses:
+        '201':
+          description: Создано
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '409': { $ref: '#/components/responses/ConflictError' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+
+  /auth/password/change:
+    post:
+      tags: [auth]
+      operationId: changePassword
+      summary: Смена пароля (фактор ops)
+      security: [ { bearerAuth: [] } ]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [current_password, new_password, totp_code]
+              properties:
+                current_password: { type: string }
+                new_password: { type: string, minLength: 10 }
+                totp_code: { type: string, pattern: '^[0-9]{6}$' }
+      responses:
+        '201':
+          description: Создано
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '409': { $ref: '#/components/responses/ConflictError' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+
+  /auth/sessions:
+    get:
+      tags: [auth]
+      operationId: sessions
+      summary: Список активных сессий и устройств
+      security: [ { bearerAuth: [] } ]
+      responses:
+        '200':
+          description: OK
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+
+  /auth/sessions/{id}:
+    delete:
+      tags: [auth]
+      operationId: revokeSession
+      summary: Отзыв одной сессии
+      security: [ { bearerAuth: [] } ]
+      parameters: [ { $ref: '#/components/parameters/PathId' } ]
+      responses:
+        '200':
+          description: OK
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '409': { $ref: '#/components/responses/ConflictError' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+
+  /auth/telegram/init-data:
+    post:
+      tags: [auth]
+      operationId: telegramInitData
+      summary: Вход через Telegram initData (TMA)
+      security: [ { bearerAuth: [] } ]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [init_data, device_id]
+              properties:
+                init_data: { type: string }
+                device_id: { type: string }
+      responses:
+        '201':
+          description: Создано
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '409': { $ref: '#/components/responses/ConflictError' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+
+  /categories:
+    get:
+      tags: [shops]
+      operationId: categories
+      summary: Справочник категорий
+      security: []
+      responses:
+        '200':
+          description: OK
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+
+  /chats/{id}:
+    get:
+      tags: [chats]
+      operationId: getChat
+      summary: Карточка чата с участниками
+      security: [ { bearerAuth: [] } ]
+      parameters: [ { $ref: '#/components/parameters/PathId' } ]
+      responses:
+        '200':
+          description: OK
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+
+  /chats/{id}/messages:
+    get:
+      tags: [chats]
+      operationId: listMessages
+      summary: handleListMessages
+      security: [ { bearerAuth: [] } ]
+      parameters: [ { $ref: '#/components/parameters/PathId' } ]
+      responses:
+        '200':
+          description: OK
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+    post:
+      tags: [chats]
+      operationId: sendMessage
+      summary: handleSendMessage
+      security: [ { bearerAuth: [] } ]
+      parameters: [ { $ref: '#/components/parameters/PathId' } ]
+      responses:
+        '201':
+          description: Создано
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '409': { $ref: '#/components/responses/ConflictError' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+
+  /chats/{id}/read:
+    post:
+      tags: [chats]
+      operationId: markRead
+      summary: Отметка сообщений прочитанными
+      security: [ { bearerAuth: [] } ]
+      parameters: [ { $ref: '#/components/parameters/PathId' } ]
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                up_to_message_id: { type: string }
+      responses:
+        '200':
+          description: OK
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '409': { $ref: '#/components/responses/ConflictError' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+
+  /dev/simulate-deposit:
+    post:
+      tags: [admin]
+      operationId: devSimulateDeposit
+      summary: Демо-зачисление депозита (dev)
+      security: [ { bearerAuth: [] } ]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [address, amount_sol]
+              properties:
+                address: { type: string }
+                amount_sol: { type: string }
+      responses:
+        '201':
+          description: Создано
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '409': { $ref: '#/components/responses/ConflictError' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+
+  /disputes:
+    get:
+      tags: [disputes]
+      operationId: listDisputes
+      summary: Список споров пользователя
+      security: [ { bearerAuth: [] } ]
+      responses:
+        '200':
+          description: OK
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+
+  /disputes/{id}:
+    get:
+      tags: [disputes]
+      operationId: getDispute
+      summary: Карточка спора с маскированием сторон
+      security: [ { bearerAuth: [] } ]
+      parameters: [ { $ref: '#/components/parameters/PathId' } ]
+      responses:
+        '200':
+          description: OK
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+
+  /disputes/{id}/escalate:
+    post:
+      tags: [disputes]
+      operationId: escalateDispute
+      summary: Передача спора арбитру
+      security: [ { bearerAuth: [] } ]
+      parameters: [ { $ref: '#/components/parameters/PathId' } ]
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                reason: { type: string }
+      responses:
+        '201':
+          description: Создано
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '409': { $ref: '#/components/responses/ConflictError' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+
+  /disputes/{id}/evidence:
+    post:
+      tags: [disputes]
+      operationId: addEvidence
+      summary: Добавление доказательства в спор
+      security: [ { bearerAuth: [] } ]
+      parameters: [ { $ref: '#/components/parameters/PathId' } ]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [kind, content]
+              properties:
+                kind: { type: string, enum: [screenshot, log, text, file] }
+                content: { type: string }
+      responses:
+        '201':
+          description: Создано
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '409': { $ref: '#/components/responses/ConflictError' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+
+  /disputes/{id}/resolve:
+    post:
+      tags: [disputes]
+      operationId: resolveDispute
+      summary: handleResolveDispute
+      security: [ { bearerAuth: [] } ]
+      parameters: [ { $ref: '#/components/parameters/PathId' } ]
+      responses:
+        '201':
+          description: Создано
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '409': { $ref: '#/components/responses/ConflictError' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+
+  /e2ee/bundle/{userId}:
+    get:
+      tags: [e2ee]
+      operationId: getBundle
+      summary: Публичный ключевой bundle собеседника
+      security: [ { bearerAuth: [] } ]
+      parameters: [ { $ref: '#/components/parameters/PathUserId' } ]
+      responses:
+        '200':
+          description: OK
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+
+  /e2ee/prekeys:
+    post:
+      tags: [e2ee]
+      operationId: uploadPrekeys
+      summary: Загрузка prekeys для E2EE (X3DH)
+      security: [ { bearerAuth: [] } ]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [prekeys]
+              properties:
+                prekeys: { type: array, items: { type: object } }
+      responses:
+        '201':
+          description: Создано
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '409': { $ref: '#/components/responses/ConflictError' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+
+  /e2ee/sessions:
+    post:
+      tags: [e2ee]
+      operationId: createSession
+      summary: Регистрация E2EE-сессии
+      security: [ { bearerAuth: [] } ]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [chat_id, peer_user_id, ratchet_key]
+              properties:
+                chat_id: { type: string }
+                peer_user_id: { type: string }
+                ratchet_key: { type: string }
+      responses:
+        '201':
+          description: Создано
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '409': { $ref: '#/components/responses/ConflictError' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+
+  /gifts/inventory:
+    get:
+      tags: [gifts]
+      operationId: giftInventory
+      summary: Инвентарь подарков
+      security: [ { bearerAuth: [] } ]
+      responses:
+        '200':
+          description: OK
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+
+  /gifts/{id}/buy:
+    post:
+      tags: [gifts]
+      operationId: buyGift
+      summary: Покупка подарка за Stars или SOL
+      security: [ { bearerAuth: [] } ]
+      parameters: [ { $ref: '#/components/parameters/PathId' } ]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [asset, to_user_id, totp_code]
+              properties:
+                asset: { $ref: '#/components/schemas/Asset' }
+                to_user_id: { type: string }
+                totp_code: { type: string, pattern: '^[0-9]{6}$' }
+      responses:
+        '201':
+          description: Создано
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/TotpRequired' }
+        '422': { $ref: '#/components/responses/InsufficientFunds' }
+        '409': { $ref: '#/components/responses/ConflictError' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+
+  /notifications:
+    get:
+      tags: [notifications]
+      operationId: notifications
+      summary: Список уведомлений
+      security: [ { bearerAuth: [] } ]
+      responses:
+        '200':
+          description: OK
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+
+  /notifications/{id}/read:
+    post:
+      tags: [notifications]
+      operationId: notificationRead
+      summary: Отметить уведомление прочитанным
+      security: [ { bearerAuth: [] } ]
+      parameters: [ { $ref: '#/components/parameters/PathId' } ]
+      responses:
+        '200':
+          description: OK
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '409': { $ref: '#/components/responses/ConflictError' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+
+  /orders/{id}/cancel:
+    post:
+      tags: [orders]
+      operationId: cancelOrder
+      summary: Отмена заказа покупателем
+      security: [ { bearerAuth: [] } ]
+      parameters: [ { $ref: '#/components/parameters/PathId' } ]
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                reason: { type: string }
+      responses:
+        '201':
+          description: Создано
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '409': { $ref: '#/components/responses/ConflictError' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+
+  /orders/{id}/confirm:
+    post:
+      tags: [orders]
+      operationId: confirmOrder
+      summary: handleConfirmOrder
+      security: [ { bearerAuth: [] } ]
+      parameters: [ { $ref: '#/components/parameters/PathId' } ]
+      responses:
+        '201':
+          description: Создано
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '409': { $ref: '#/components/responses/ConflictError' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+
+  /orders/{id}/deliver:
+    post:
+      tags: [orders]
+      operationId: deliverOrder
+      summary: Выдача товара продавцом
+      security: [ { bearerAuth: [] } ]
+      parameters: [ { $ref: '#/components/parameters/PathId' } ]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [payload]
+              properties:
+                payload: { type: string }
+      responses:
+        '201':
+          description: Создано
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '409': { $ref: '#/components/responses/ConflictError' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+
+  /orders/{id}/delivery:
+    get:
+      tags: [orders]
+      operationId: orderDelivery
+      summary: Получение купленного товара (расшифровка на клиенте)
+      security: [ { bearerAuth: [] } ]
+      parameters: [ { $ref: '#/components/parameters/PathId' } ]
+      responses:
+        '200':
+          description: OK
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+
+  /orders/{id}/dispute:
+    post:
+      tags: [orders]
+      operationId: openDispute
+      summary: Открытие спора по заказу
+      security: [ { bearerAuth: [] } ]
+      parameters: [ { $ref: '#/components/parameters/PathId' } ]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [reason_code, comment, evidence]
+              properties:
+                reason_code: { type: string }
+                comment: { type: string }
+                evidence: { type: array, items: { type: string } }
+      responses:
+        '201':
+          description: Создано
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/TotpRequired' }
+        '409': { $ref: '#/components/responses/ConflictError' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+
+  /orders/{id}/extend:
+    post:
+      tags: [orders]
+      operationId: extendOrder
+      summary: Продление срока подтверждения заказа
+      security: [ { bearerAuth: [] } ]
+      parameters: [ { $ref: '#/components/parameters/PathId' } ]
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                days: { type: integer, minimum: 1, maximum: 7 }
+      responses:
+        '201':
+          description: Создано
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '409': { $ref: '#/components/responses/ConflictError' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+
+  /orders/{id}/history:
+    get:
+      tags: [orders]
+      operationId: orderHistory
+      summary: История статусов заказа
+      security: [ { bearerAuth: [] } ]
+      parameters: [ { $ref: '#/components/parameters/PathId' } ]
+      responses:
+        '200':
+          description: OK
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+
+  /orders/{id}/pay:
+    post:
+      tags: [orders]
+      operationId: payOrder
+      summary: handlePayOrder
+      security: [ { bearerAuth: [] } ]
+      parameters: [ { $ref: '#/components/parameters/PathId' } ]
+      responses:
+        '201':
+          description: Создано
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/TotpRequired' }
+        '422': { $ref: '#/components/responses/InsufficientFunds' }
+        '409': { $ref: '#/components/responses/ConflictError' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+
+  /orders/{id}/processing:
+    post:
+      tags: [orders]
+      operationId: processingOrder
+      summary: Перевод заказа в обработку
+      security: [ { bearerAuth: [] } ]
+      parameters: [ { $ref: '#/components/parameters/PathId' } ]
+      responses:
+        '201':
+          description: Создано
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '409': { $ref: '#/components/responses/ConflictError' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+
+  /orders/{id}/review:
+    post:
+      tags: [orders]
+      operationId: createReview
+      summary: handleCreateReview
+      security: [ { bearerAuth: [] } ]
+      parameters: [ { $ref: '#/components/parameters/PathId' } ]
+      responses:
+        '201':
+          description: Создано
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '409': { $ref: '#/components/responses/ConflictError' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+
+  /products/{id}:
+    get:
+      tags: [products]
+      operationId: getProduct
+      summary: handleGetProduct
+      security: []
+      parameters: [ { $ref: '#/components/parameters/PathId' } ]
+      responses:
+        '200':
+          description: OK
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+    patch:
+      tags: [products]
+      operationId: updateProduct
+      summary: Изменение товара
+      security: [ { bearerAuth: [] } ]
+      parameters: [ { $ref: '#/components/parameters/PathId' } ]
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                title: { type: string }
+                price_sol: { type: string }
+                price_stars: { type: integer }
+                status: { type: string, enum: [draft, published, archived] }
+      responses:
+        '200':
+          description: OK
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '409': { $ref: '#/components/responses/ConflictError' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+
+  /products/{id}/stock:
+    post:
+      tags: [products]
+      operationId: addStock
+      summary: Пополнение зашифрованного стока
+      security: [ { bearerAuth: [] } ]
+      parameters: [ { $ref: '#/components/parameters/PathId' } ]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [items]
+              properties:
+                items: { type: array, items: { type: string } }
+      responses:
+        '201':
+          description: Создано
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '409': { $ref: '#/components/responses/ConflictError' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+
+  /reviews/{id}/reply:
+    post:
+      tags: [reviews]
+      operationId: replyReview
+      summary: Ответ магазина на отзыв
+      security: [ { bearerAuth: [] } ]
+      parameters: [ { $ref: '#/components/parameters/PathId' } ]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [text]
+              properties:
+                text: { type: string }
+      responses:
+        '201':
+          description: Создано
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '409': { $ref: '#/components/responses/ConflictError' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+
+  /reviews/{id}/report:
+    post:
+      tags: [reviews]
+      operationId: reportReview
+      summary: Жалоба на отзыв
+      security: [ { bearerAuth: [] } ]
+      parameters: [ { $ref: '#/components/parameters/PathId' } ]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [reason_code, comment]
+              properties:
+                reason_code: { type: string }
+                comment: { type: string }
+      responses:
+        '201':
+          description: Создано
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '409': { $ref: '#/components/responses/ConflictError' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+
+  /shops/{id}/products:
+    get:
+      tags: [shops]
+      operationId: listProducts
+      summary: handleListProducts
+      security: []
+      parameters: [ { $ref: '#/components/parameters/PathId' } ]
+      responses:
+        '200':
+          description: OK
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+    post:
+      tags: [shops]
+      operationId: createProduct
+      summary: handleCreateProduct
+      security: [ { bearerAuth: [] } ]
+      parameters: [ { $ref: '#/components/parameters/PathId' } ]
+      responses:
+        '201':
+          description: Создано
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '409': { $ref: '#/components/responses/ConflictError' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+
+  /shops/{id}/rent:
+    get:
+      tags: [shops]
+      operationId: getRent
+      summary: handleGetRent
+      security: [ { bearerAuth: [] } ]
+      parameters: [ { $ref: '#/components/parameters/PathId' } ]
+      responses:
+        '200':
+          description: OK
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+    post:
+      tags: [shops]
+      operationId: subscribeRent
+      summary: handleSubscribeRent
+      security: [ { bearerAuth: [] } ]
+      parameters: [ { $ref: '#/components/parameters/PathId' } ]
+      responses:
+        '201':
+          description: Создано
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/TotpRequired' }
+        '409': { $ref: '#/components/responses/ConflictError' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+
+  /shops/{id}/reviews:
+    get:
+      tags: [shops]
+      operationId: listReviews
+      summary: Отзывы магазина
+      security: []
+      parameters: [ { $ref: '#/components/parameters/PathId' } ]
+      responses:
+        '200':
+          description: OK
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+
+  /shops/{id}/stats:
+    get:
+      tags: [shops]
+      operationId: shopStats
+      summary: Статистика магазина для владельца
+      security: [ { bearerAuth: [] } ]
+      parameters: [ { $ref: '#/components/parameters/PathId' } ]
+      responses:
+        '200':
+          description: OK
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+
+  /stars/invoice:
+    post:
+      tags: [gifts]
+      operationId: starsInvoice
+      summary: Создание Stars-инвойса (XTR)
+      security: [ { bearerAuth: [] } ]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [amount_stars, purpose]
+              properties:
+                amount_stars: { type: integer }
+                purpose: { type: string }
+      responses:
+        '201':
+          description: Создано
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '409': { $ref: '#/components/responses/ConflictError' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+
+  /wallet/transactions:
+    get:
+      tags: [wallet]
+      operationId: walletTx
+      summary: История проводок
+      security: [ { bearerAuth: [] } ]
+      responses:
+        '200':
+          description: OK
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+
 components:
   securitySchemes:
     bearerAuth:
@@ -824,10 +2029,9 @@ components:
       bearerFormat: JWT (EdDSA / Ed25519)
 
   parameters:
-    ShopId: { name: shopId, in: path, required: true, schema: { type: string } }
-    OrderId: { name: orderId, in: path, required: true, schema: { type: string } }
-    ChatId: { name: chatId, in: path, required: true, schema: { type: string } }
-    DisputeId: { name: disputeId, in: path, required: true, schema: { type: string } }
+    PathId: { name: id, in: path, required: true, schema: { type: string } }
+    PathUserId: { name: userId, in: path, required: true, schema: { type: string } }
+    PathKey: { name: key, in: path, required: true, schema: { type: string } }
 
   responses:
     ValidationError:
@@ -842,6 +2046,11 @@ components:
           schema: { $ref: '#/components/schemas/Error' }
     NotFound:
       description: Не найдено (или не видно)
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+    Forbidden:
+      description: Доступ запрещён (роль, санкция, гео-блокировка GEO_BLOCKED)
       content:
         application/json:
           schema: { $ref: '#/components/schemas/Error' }

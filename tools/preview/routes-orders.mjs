@@ -5,6 +5,7 @@ import {
   CONFIG, bad, conflict, forbidden, notFound, unprocessable,
   ok, created, paginate, truncate, orderDto, statusTitle, orderActions,
   requireAuth, requireOps, audit, notify, push, pushMany, reviewDto, recalcFeedScores,
+  geoBlock,
 } from './lib.mjs';
 import { ACC } from './data.mjs';
 import {
@@ -93,6 +94,9 @@ export function orderRoutes(ctx) {
     const asset = String(b.pay_asset ?? (product.price_stars > 0 && product.price_sol === 0 ? 'STARS' : 'SOL')).toUpperCase();
     if (!['SOL', 'STARS'].includes(asset)) throw bad('pay_asset должен быть SOL или STARS');
     if (asset === 'STARS' && !shop.accepts_stars) throw unprocessable('STARS_NOT_ACCEPTED', 'магазин не принимает Telegram Stars');
+    // FR-GEO-03(б): товар запрещённой категории нельзя купить в этой юрисдикции.
+    const geo = geoBlock(ctx, [product.category_id], auth.user.country);
+    if (geo) throw forbidden('GEO_BLOCKED', `товар недоступен в стране ${auth.user.country}: категория «${geo.name_ru}»`);
     const unitSol = product.price_sol;
     const unitStars = product.price_stars;
     if (asset === 'SOL' && unitSol <= 0) throw unprocessable('ORDER_NOT_PAYABLE', 'цена в SOL не задана');

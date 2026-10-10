@@ -312,6 +312,48 @@ export function adminRoutes(ctx) {
     return ok({ id: shop.id, status: sub.status, period_end: sub.period_end, days_added: days });
   }, { rate: 'admin' }]);
 
+  routes.push(['GET', '/api/v1/admin/categories', (r) => {
+    staffOnly(ctx, r);
+    return ok({
+      items: [...ctx.db.categories.values()]
+        .sort((a, b) => a.id - b.id)
+        .map((c) => ({
+          id: c.id, slug: c.slug, name_ru: c.name_ru, name_en: c.name_en,
+          restricted: !!c.restricted, blocked_countries: [...(c.blocked_countries ?? [])],
+          shops: [...ctx.db.shops.values()].filter((sh) => (sh.category_ids ?? []).map(Number).includes(c.id)).length,
+        })),
+      // FR-GEO-03(б): чёрный список юрисдикций правится здесь же.
+    });
+  }, { rate: 'admin' }]);
+
+  routes.push(['PATCH', '/api/v1/admin/categories/:id', (r) => {
+    const auth = superOnly(ctx, r);
+    const cat = ctx.db.categories.get(Number(r.params.id));
+    if (!cat) throw notFound('категория не найдена');
+    const b = r.body ?? {};
+    if (b.blocked_countries === undefined && b.restricted === undefined) {
+      throw bad('передайте blocked_countries или restricted');
+    }
+    requireOps(ctx, r.req, auth, 'admin_write', { totpCode: String(b.totp_code ?? '') });
+    const before = { blocked_countries: [...(cat.blocked_countries ?? [])], restricted: !!cat.restricted };
+    if (b.blocked_countries !== undefined) {
+      if (!Array.isArray(b.blocked_countries)) throw bad('blocked_countries — массив кодов стран');
+      const codes = [...new Set(b.blocked_countries.map((x) => String(x).toUpperCase()))];
+      for (const code of codes) {
+        if (!ctx.db.countries.get(code)) throw bad(`неизвестная страна: ${code}`);
+      }
+      cat.blocked_countries = codes;
+    }
+    if (b.restricted !== undefined) cat.restricted = !!b.restricted;
+    recalcFeedScores(ctx);
+    audit(ctx, r.req, auth.user, 'admin.category', 'category', String(cat.id), String(b.reason ?? ''), 'ops',
+      before, { blocked_countries: [...cat.blocked_countries], restricted: cat.restricted });
+    return ok({
+      id: cat.id, name_ru: cat.name_ru, restricted: cat.restricted,
+      blocked_countries: [...cat.blocked_countries],
+    });
+  }, { rate: 'admin' }]);
+
   routes.push(['GET', '/api/v1/admin/rent/plans', (r) => {
     staffOnly(ctx, r);
     return ok({

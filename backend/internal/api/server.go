@@ -196,6 +196,8 @@ func (s *Server) registerRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("POST /api/v1/admin/shops/{id}/sanction", s.handleAdminSanction)
 	mux.HandleFunc("POST /api/v1/admin/shops/{id}/verified", s.handleAdminVerified)
 	mux.HandleFunc("POST /api/v1/admin/shops/{id}/rent/extend", s.handleAdminRentExtend)
+	mux.HandleFunc("GET /api/v1/admin/categories", s.handleAdminListCategories)
+	mux.HandleFunc("PATCH /api/v1/admin/categories/{id}", s.handleAdminUpdateCategory)
 	mux.HandleFunc("GET /api/v1/admin/rent/plans", s.handleAdminRentPlans)
 	mux.HandleFunc("PATCH /api/v1/admin/rent/plans/{id}", s.handleAdminUpdateRentPlan)
 	mux.HandleFunc("GET /api/v1/admin/disputes", s.handleAdminListDisputes)

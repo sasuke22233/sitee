@@ -145,6 +145,7 @@ const COUNTRIES = [
   ['NL', 'Нидерланды', 'Netherlands'], ['NO', 'Норвегия', 'Norway'], ['SE', 'Швеция', 'Sweden'],
   ['FI', 'Финляндия', 'Finland'], ['PL', 'Польша', 'Poland'], ['GB', 'Великобритания', 'United Kingdom'],
   ['US', 'США', 'United States'], ['IN', 'Индия', 'India'], ['BR', 'Бразилия', 'Brazil'],
+  ['CN', 'Китай', 'China'], ['IR', 'Иран', 'Iran'],
 ];
 
 const CITIES = [
@@ -160,21 +161,24 @@ const CITIES = [
   [9101, 'SE', 'Стокгольм', 'Stockholm', 'Europe/Stockholm'], [9201, 'FI', 'Хельсинки', 'Helsinki', 'Europe/Helsinki'],
   [9301, 'PL', 'Варшава', 'Warsaw', 'Europe/Warsaw'], [9401, 'GB', 'Лондон', 'London', 'Europe/London'],
   [9501, 'US', 'Нью-Йорк', 'New York', 'America/New_York'],
+  [9001, 'CN', 'Пекин', 'Beijing', 'Asia/Shanghai'], [9002, 'IR', 'Тегеран', 'Tehran', 'Asia/Tehran'],
 ];
 
+// [id, slug, ru, en, restricted(18+), blocked_countries] — FR-GEO-03(б):
+// чёрный список юрисдикций настраивается в админке.
 const CATEGORIES = [
-  [1, 'keys', 'Ключи и активации', 'Keys & activations', false],
-  [2, 'accounts', 'Аккаунты', 'Accounts', true],
-  [3, 'software', 'Программы', 'Software', false],
-  [4, 'subscriptions', 'Подписки', 'Subscriptions', false],
-  [5, 'gaming', 'Игровые товары', 'Gaming', false],
-  [6, 'education', 'Обучение и курсы', 'Education', false],
-  [7, 'design', 'Дизайн и графика', 'Design & graphics', false],
-  [8, 'music', 'Музыка и аудио', 'Music & audio', false],
-  [9, 'crypto-tools', 'Крипто-инструменты', 'Crypto tools', true],
-  [10, 'services', 'Услуги', 'Services', false],
-  [11, 'files', 'Файлы и шаблоны', 'Files & templates', false],
-  [12, 'vpn-proxy', 'VPN и прокси', 'VPN & proxy', false],
+  [1, 'keys', 'Ключи и активации', 'Keys & activations', false, []],
+  [2, 'accounts', 'Аккаунты', 'Accounts', true, []],
+  [3, 'software', 'Программы', 'Software', false, []],
+  [4, 'subscriptions', 'Подписки', 'Subscriptions', false, []],
+  [5, 'gaming', 'Игровые товары', 'Gaming', false, []],
+  [6, 'education', 'Обучение и курсы', 'Education', false, []],
+  [7, 'design', 'Дизайн и графика', 'Design & graphics', false, []],
+  [8, 'music', 'Музыка и аудио', 'Music & audio', false, []],
+  [9, 'crypto-tools', 'Крипто-инструменты', 'Crypto tools', true, ['US']],
+  [10, 'services', 'Услуги', 'Services', false, []],
+  [11, 'files', 'Файлы и шаблоны', 'Files & templates', false, []],
+  [12, 'vpn-proxy', 'VPN и прокси', 'VPN & proxy', false, ['CN', 'IR']],
 ];
 
 const RENT_PLANS = [
@@ -312,7 +316,9 @@ export function createDb() {
 
   for (const [code, ru, en] of COUNTRIES) db.countries.set(code, { code, name_ru: ru, name_en: en });
   for (const [id, country, ru, en, tz] of CITIES) db.cities.set(id, { id, country, name_ru: ru, name_en: en, tz });
-  for (const [id, slug, ru, en, restricted] of CATEGORIES) db.categories.set(id, { id, slug, name_ru: ru, name_en: en, restricted });
+  for (const [id, slug, ru, en, restricted, blocked] of CATEGORIES) {
+    db.categories.set(id, { id, slug, name_ru: ru, name_en: en, restricted, blocked_countries: [...blocked] });
+  }
   for (const p of RENT_PLANS) {
     const plan = { ...p, id: C.newId('pln'), price_sol: Math.round(p.sol * C.LAMPORTS_PER_SOL), price_stars: p.stars, active: true };
     db.rentPlans.set(plan.id, plan);
