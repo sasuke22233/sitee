@@ -3,7 +3,7 @@
 import * as C from './crypto.mjs';
 import {
   CONFIG, ApiError, bad, conflict, forbidden, locked, notFound, tooMany, unauthorized,
-  ok, created, allow, clientIp, issueSession, requireAuth, requireOps, requireRole,
+  ok, created, allow, clientIp, issueSession, rotateSession, requireAuth, requireOps, requireRole,
   audit, notify, recordAuthEvent, userDto, maskEmail,
 } from './lib.mjs';
 
@@ -418,15 +418,31 @@ export function authRoutes(ctx) {
       ctx.db.refresh.delete(hash);
       throw unauthorized('refresh_token истёк');
     }
+    // FR-AUTH-07: повторное использование refresh-токена отзывает всю семью + сессию.
+    if (stored.used_at) {
+      for (const [h, row] of ctx.db.refresh) {
+        if (row.family_id === stored.family_id) ctx.db.refresh.delete(h);
+      }
+      const familySession = ctx.db.sessions.get(stored.session_id);
+      if (familySession) {
+        familySession.status = 'revoked';
+        familySession.revoke_reason = 'refresh token reuse';
+        ctx.db.sessions.delete(familySession.id);
+      }
+      recordAuthEvent(ctx, familySession?.user_id ?? '', 'refresh_reuse', r.req,
+        'семья токенов отозвана', 500);
+      ctx.securityEvent('refresh_reuse', { ip: clientIp(r.req) }, 500);
+      throw unauthorized('refresh-токен уже использован; сессии отозваны');
+    }
     const session = ctx.db.sessions.get(stored.session_id);
     const user = session ? ctx.db.users.get(session.user_id) : null;
     if (!user || user.status !== 'active' || !session || session.status !== 'active') {
       ctx.db.refresh.delete(hash);
       throw unauthorized('сессия закрыта');
     }
-    ctx.db.refresh.delete(hash); // ротация: старая ссылка инвалидируется
-    const issued = issueSession(ctx, user, { factorOps: !!session.factor_ops_ok, deviceId: session.device_id, ip: session.ip, ua: session.ua });
-    ctx.db.sessions.delete(session.id);
+    // Ротация: старая ссылка помечается использованной, новая — та же сессия и семья.
+    stored.used_at = new Date().toISOString();
+    const issued = rotateSession(ctx, session, user, { familyId: stored.family_id });
     return ok({
       access_token: issued.access_token, refresh_token: issued.refresh_token,
       expires_in: issued.expires_in, token_type: 'Bearer',

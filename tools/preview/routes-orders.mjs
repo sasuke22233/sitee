@@ -106,7 +106,7 @@ export function orderRoutes(ctx) {
     const free = itemsStock.filter((i) => i.status === 'free').length;
     const deliveryKind = free > 0 ? 'auto' : 'manual';
     if (deliveryKind === 'auto' && free < qty) {
-      throw unprocessable('OUT_OF_STOCK', `в наличии ${free} шт., запрошено ${qty}`);
+      throw unprocessable('STOCK_EMPTY', `в наличии ${free} шт., запрошено ${qty}`);
     }
 
     const id = C.newId('ord');
@@ -139,7 +139,7 @@ export function orderRoutes(ctx) {
     }
     if (deliveryKind === 'auto') {
       const taken = reserveStock(ctx, order, product, qty);
-      if (!taken) throw unprocessable('OUT_OF_STOCK', 'товар закончился, пока оформлялся заказ');
+      if (!taken) throw unprocessable('STOCK_EMPTY', 'товар закончился, пока оформлялся заказ');
       item.stock_item_ids = taken.map((si) => si.id);
       product.stock_free = itemsStock.filter((i) => i.status === 'free').length;
     }

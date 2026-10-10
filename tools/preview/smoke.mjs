@@ -101,6 +101,46 @@ async function main() {
   const me = await call('GET', '/api/v1/auth/me', { token: tokens.buyer_nova.access });
   check('auth/me: баланс и факторы', me.status === 200 && me.data.factors?.login === 'active' && me.data.balances?.SOL !== undefined);
 
+  // FR-AUTH-07: ротация refresh + reuse-detection (семья токенов отзывается).
+  const rotated = await call('POST', '/api/v1/auth/refresh', {
+    body: { refresh_token: tokens.buyer_nova.refresh },
+  });
+  check('refresh: ротация выдаёт новую пару', rotated.status === 200 && !!rotated.data.refresh_token);
+  const reuse = await call('POST', '/api/v1/auth/refresh', {
+    body: { refresh_token: tokens.buyer_nova.refresh },
+  });
+  check('refresh: повторное использование → 401', reuse.status === 401, `(${reuse.status})`);
+  const afterReuse = await call('GET', '/api/v1/auth/me', { token: rotated.data.access_token });
+  check('refresh: семья токенов отозвана', afterReuse.status === 401, `(${afterReuse.status})`);
+  // Сессия buyer_nova отозвана — перевыпускаем токены для остальных проверок.
+  const relogin = await login(byRole.buyer_nova.email, byRole.buyer_nova.password, byRole.buyer_nova.backup_login.split(',')[1], null);
+  tokens.buyer_nova = relogin.error ? tokens.buyer_nova : { ...relogin, opsCodes: byRole.buyer_nova.backup_ops.split(',') };
+  check('refresh: после отзыва семьи повторный вход работает', !relogin.error);
+
+  // FR-ORD-01: ограниченный сток — перебор количества даёт 422 STOCK_EMPTY.
+  const scarce = await call('GET', '/api/v1/shops', { token: tokens.buyer_nova.access });
+  const scarceShop = (scarce.data.items ?? []).find((s) => s.slug === 'proxy-nord') ?? scarce.data.items?.[0];
+  if (scarceShop) {
+    const prods = await call('GET', `/api/v1/shops/${scarceShop.id}/products`, { token: tokens.buyer_nova.access });
+    const lowStock = (prods.data.items ?? []).find((p) => p.stock_free > 0);
+    if (lowStock) {
+      const first = await call('POST', '/api/v1/orders', {
+        token: tokens.buyer_nova.access, body: { product_id: lowStock.id, qty: 1 },
+      });
+      check('заказ: единица ограниченного стока забронирована', first.status === 201, `(${first.status})`);
+      if (first.status === 201) {
+        const qty = Math.max(1, lowStock.stock_free + 1);
+        const second = await call('POST', '/api/v1/orders', {
+          token: tokens.buyer_nova.access, body: { product_id: lowStock.id, qty },
+        });
+        check('заказ: перебор стока → 422 STOCK_EMPTY',
+          second.status === 422 && second.data.error?.code === 'STOCK_EMPTY',
+          `(${second.status}) ${second.data.error?.code ?? ''}`);
+      }
+    }
+  }
+
+
   console.log('\n2. Главная: лента магазинов (поиск, корона, сортировка)');
   const feed = await call('GET', '/api/v1/shops?limit=6');
   check('лента отдаёт карточки', feed.data.items.length >= 4);

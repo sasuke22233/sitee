@@ -181,11 +181,29 @@ export function issueSession(ctx, user, { factorOps = false, deviceId = '', ip =
   ctx.db.sessions.set(sessionId, session);
   const access = C.signToken({ sub: user.id, sid: sessionId, role: user.role, nick: user.nickname }, CONFIG.accessTtl);
   const refresh = C.randomToken(32);
+  // family_id = id сессии: все refresh-токены сессии — одна семья (как в Go store.RefreshToken).
   ctx.db.refresh.set(C.tokenHash(refresh), {
-    token_hash: C.tokenHash(refresh), session_id: sessionId, family_id: C.newId('fam'),
+    token_hash: C.tokenHash(refresh), session_id: sessionId, family_id: sessionId, used_at: null,
     expires_at: new Date(Date.now() + CONFIG.refreshTtl * 1000).toISOString(), created_at: new Date().toISOString(),
   });
   return { access_token: access, refresh_token: refresh, session_id: sessionId, expires_in: CONFIG.accessTtl, token_type: 'Bearer' };
+}
+
+// rotateSession — ротация внутри той же сессии и семьи (эквивалент Go tokensForSession).
+export function rotateSession(ctx, session, user, { familyId } = {}) {
+  const access = C.signToken(
+    { sub: user.id, sid: session.id, role: user.role, nick: user.nickname },
+    CONFIG.accessTtl,
+  );
+  const refresh = C.randomToken(32);
+  ctx.db.refresh.set(C.tokenHash(refresh), {
+    token_hash: C.tokenHash(refresh), session_id: session.id, family_id: familyId ?? session.id, used_at: null,
+    expires_at: new Date(Date.now() + CONFIG.refreshTtl * 1000).toISOString(), created_at: new Date().toISOString(),
+  });
+  return {
+    access_token: access, refresh_token: refresh, session_id: session.id,
+    expires_in: CONFIG.accessTtl, token_type: 'Bearer',
+  };
 }
 
 export function authenticate(ctx, req) {
