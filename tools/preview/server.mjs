@@ -105,7 +105,10 @@ const MIME = {
   '.png': 'image/png', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.webp': 'image/webp',
   '.ico': 'image/x-icon', '.woff2': 'font/woff2', '.txt': 'text/plain; charset=utf-8',
   '.map': 'application/json; charset=utf-8',
+  // Архивы проекта: отдаём как вложение, чтобы браузер скачивал, а не открывал.
+  '.zip': 'application/zip', '.gz': 'application/gzip', '.tgz': 'application/gzip',
 };
+const DOWNLOADABLE = new Set(['.zip', '.gz', '.tgz', '.pdf']);
 
 // ---------------------------------------------------------------------------
 // Сжатие и ETag: на медленном канале это решает — JS/CSS жмутся в ~4 раза,
@@ -183,6 +186,10 @@ function serveStatic(req, res, pathname) {
     // no-cache + ETag = «проверяй свежесть, но используй кэш при совпадении».
     'Cache-Control': ['.html', '.js', '.mjs', '.css'].includes(ext) ? 'no-cache' : 'public, max-age=300',
     // TMA открывается внутри webview Telegram — фреймы разрешаем.
+    // Архив проекта (/downloads/sitee.zip) должен скачиваться, а не рендериться.
+    ...(DOWNLOADABLE.has(ext)
+      ? { 'Content-Disposition': `attachment; filename="${path.basename(file)}"` }
+      : {}),
     'Content-Security-Policy': "default-src 'self'; img-src 'self' data: blob:; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline' https://telegram.org; connect-src 'self' ws: wss: https://telegram.org; frame-ancestors *",
     ...compressed,
   });
