@@ -979,3 +979,69 @@ func (s *Server) autoResolveOverdue() int {
 	}
 	return n
 }
+
+// handleGetDisputeEvidence — одно доказательство спора с расшифровкой (FR-DSP-03).
+// Участники видят только свои вложения, арбитр — все; просмотр арбитром аудитируется.
+func (s *Server) handleGetDisputeEvidence(w http.ResponseWriter, r *http.Request) {
+	u, ok := s.requireAuth(w, r)
+	if !ok {
+		return
+	}
+	evidenceID := r.PathValue("evidenceId")
+	d, ok := s.loadDisputeForUser(w, r, u)
+	if !ok {
+		return
+	}
+	staff := u.Role == store.RoleArbiter || u.Role == store.RoleModerator || u.Role == store.RoleSuperAdmin
+	var (
+		dto  map[string]any
+		fail *httpx.APIError
+	)
+	s.Store.Read(func() {
+		var ev *store.Evidence
+		for _, e := range d.Evidence {
+			if e.ID == evidenceID {
+				ev = e
+				break
+			}
+		}
+		if ev == nil {
+			fail = httpx.NotFound("доказательство не найдено")
+			return
+		}
+		if !staff && ev.UploaderID != u.ID {
+			fail = httpx.Forbidden("FORBIDDEN", "нет доступа к доказательствам")
+			return
+		}
+		alias := "Арбитр"
+		switch {
+		case ev.UploaderID == d.BuyerID:
+			alias = d.BuyerAlias
+		case ev.UploaderID == d.SellerID:
+			alias = d.SellerAlias
+		}
+		dto = map[string]any{
+			"id": ev.ID, "kind": ev.Kind, "name": ev.Name, "sha256": ev.SHA256,
+			"size": ev.Size, "meta_stripped": ev.MetaStripped,
+			"created_at": ev.CreatedAt, "uploader_visible_as": alias,
+		}
+		raw, err := s.Crypto.DecryptString(store.DomainDispute, ev.ID, ev.DataCT)
+		if err != nil {
+			return
+		}
+		if ev.Kind == "text" {
+			dto["text"] = raw
+			return
+		}
+		dto["data_b64"] = raw
+	})
+	if fail != nil {
+		httpx.Fail(w, r, fail)
+		return
+	}
+	if staff {
+		s.audit(r, u.ID, u.Role, "dispute.evidence_view", "dispute", d.ID, "просмотр арбитром", "",
+			nil, map[string]any{"evidence_id": evidenceID})
+	}
+	httpx.JSON(w, http.StatusOK, dto)
+}

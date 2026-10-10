@@ -1425,6 +1425,40 @@ paths:
         '409': { $ref: '#/components/responses/ConflictError' }
         '404': { $ref: '#/components/responses/NotFound' }
         '429': { $ref: '#/components/responses/RateLimited' }
+  /disputes/{id}/evidence/{evidenceId}:
+    get:
+      tags: [disputes]
+      operationId: getDisputeEvidence
+      summary: Одно доказательство спора с расшифровкой
+      description: |
+        Участник видит только свои вложения, арбитр/модератор — все.
+        Просмотр арбитром пишется в аудит (`dispute.evidence_view`).
+      security: [ { bearerAuth: [] } ]
+      parameters:
+        - { $ref: '#/components/parameters/PathId' }
+        - { name: evidenceId, in: path, required: true, schema: { type: string } }
+      responses:
+        '200':
+          description: Доказательство
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  id: { type: string }
+                  kind: { type: string, enum: [image, video, file, text] }
+                  name: { type: string }
+                  sha256: { type: string }
+                  size: { type: integer }
+                  meta_stripped: { type: boolean }
+                  created_at: { type: string, format: date-time }
+                  uploader_visible_as: { type: string }
+                  text: { type: string, description: 'Только для kind=text' }
+                  data_b64: { type: string, description: 'Только для файловых вложений' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '429': { $ref: '#/components/responses/RateLimited' }
 
   /disputes/{id}/resolve:
     post:
@@ -1453,6 +1487,40 @@ paths:
         '200':
           description: OK
         '400': { $ref: '#/components/responses/ValidationError' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+
+  /e2ee/safety/{userId}:
+    get:
+      tags: [e2ee]
+      operationId: getSafety
+      summary: Safety number для визуальной сверки ключей (FR-MSG-04)
+      description: Детерминированный код пары пользователей — совпадение подтверждает отсутствие MITM.
+      security: [ { bearerAuth: [] } ]
+      parameters: [ { $ref: '#/components/parameters/PathUserId' } ]
+      responses:
+        '200':
+          description: Номер и активные сессии
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  user_id: { type: string }
+                  nickname: { type: string }
+                  safety_number: { type: string }
+                  instruction: { type: string }
+                  sessions:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        id: { type: string }
+                        chat_id: { type: string }
+                        root_key_fingerprint: { type: string }
+                        safety_number: { type: string }
+                        created_at: { type: string, format: date-time }
         '401': { $ref: '#/components/responses/Unauthorized' }
         '404': { $ref: '#/components/responses/NotFound' }
         '429': { $ref: '#/components/responses/RateLimited' }
@@ -1578,6 +1646,25 @@ paths:
         '401': { $ref: '#/components/responses/Unauthorized' }
         '409': { $ref: '#/components/responses/ConflictError' }
         '404': { $ref: '#/components/responses/NotFound' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+
+  /notifications/read-all:
+    post:
+      tags: [notifications]
+      operationId: notificationsReadAll
+      summary: Отметить все уведомления прочитанными (сбрасывает бейдж)
+      security: [ { bearerAuth: [] } ]
+      responses:
+        '200':
+          description: Количество прочитанных
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  read: { type: integer }
+                  unread: { type: integer, enum: [0] }
+        '401': { $ref: '#/components/responses/Unauthorized' }
         '429': { $ref: '#/components/responses/RateLimited' }
 
   /orders/{id}/cancel:

@@ -113,6 +113,7 @@ func (s *Server) registerRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("GET /api/v1/auth/events", s.handleAuthEvents)
 	mux.HandleFunc("GET /api/v1/notifications", s.handleNotifications)
 	mux.HandleFunc("POST /api/v1/notifications/{id}/read", s.handleNotificationRead)
+	mux.HandleFunc("POST /api/v1/notifications/read-all", s.handleNotificationsReadAll)
 
 	// Магазины и лента
 	mux.HandleFunc("GET /api/v1/shops", s.handleListShops)
@@ -155,6 +156,7 @@ func (s *Server) registerRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("POST /api/v1/disputes/{id}/escalate", s.handleEscalateDispute)
 	mux.HandleFunc("POST /api/v1/disputes/{id}/resolve", s.handleResolveDispute)
 	mux.HandleFunc("POST /api/v1/disputes/{id}/evidence", s.handleAddEvidence)
+	mux.HandleFunc("GET /api/v1/disputes/{id}/evidence/{evidenceId}", s.handleGetDisputeEvidence)
 
 	// Мессенджер
 	mux.HandleFunc("GET /api/v1/chats", s.handleListChats)
@@ -165,6 +167,7 @@ func (s *Server) registerRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("POST /api/v1/chats/{id}/read", s.handleMarkRead)
 	mux.HandleFunc("POST /api/v1/e2ee/prekeys", s.handleUploadPrekeys)
 	mux.HandleFunc("GET /api/v1/e2ee/bundle/{userId}", s.handleGetBundle)
+	mux.HandleFunc("GET /api/v1/e2ee/safety/{userId}", s.handleGetSafety)
 	mux.HandleFunc("POST /api/v1/e2ee/sessions", s.handleCreateSession)
 
 	// Кошелёк, обмен, звёзды, подарки

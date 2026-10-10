@@ -968,7 +968,7 @@ func safetyNumber(fingerprint, userA, userB string) string {
 		n := int(mac[i])<<8 | int(mac[i+1])
 		groups = append(groups, fmt.Sprintf("%05d", n%100000))
 	}
-	return strings.Join(groups, " ")
+	return strings.Join(groups, "-")
 }
 
 func hmacSHA256(key, msg []byte) []byte {
@@ -1059,4 +1059,48 @@ func isBase58(s string) bool {
 		}
 	}
 	return true
+}
+
+// handleGetSafety — safety number для визуальной сверки E2EE-ключей (FR-MSG-04).
+// Номер детерминирован паре пользователей: совпадение подтверждает отсутствие MITM.
+func (s *Server) handleGetSafety(w http.ResponseWriter, r *http.Request) {
+	u, ok := s.requireAuth(w, r)
+	if !ok {
+		return
+	}
+	userID := r.PathValue("userId")
+	var (
+		out  map[string]any
+		fail *httpx.APIError
+	)
+	s.Store.Read(func() {
+		peer := s.Store.Users[userID]
+		if peer == nil {
+			fail = httpx.NotFound("пользователь не найден")
+			return
+		}
+		sessions := []map[string]any{}
+		for _, sess := range s.Store.Sessions2 {
+			if sess.FromUser != u.ID && sess.FromUser != userID {
+				continue
+			}
+			sessions = append(sessions, map[string]any{
+				"id": sess.ID, "chat_id": sess.ChatID,
+				"root_key_fingerprint": sess.Fingerprint,
+				"safety_number":        sess.SafetyNum,
+				"created_at":           sess.CreatedAt,
+			})
+		}
+		out = map[string]any{
+			"user_id": userID, "nickname": peer.Nickname,
+			"safety_number": safetyNumber(s.Crypto.KEKFingerprint(), u.ID, userID),
+			"sessions":      sessions,
+			"instruction":   "Сравните номер с собеседником голосом или вживую — совпадение подтверждает отсутствие MITM.",
+		}
+	})
+	if fail != nil {
+		httpx.Fail(w, r, fail)
+		return
+	}
+	httpx.JSON(w, http.StatusOK, out)
 }

@@ -80,7 +80,7 @@ async function main() {
   check('dev/credentials', creds.status === 200 && creds.data.users.length >= 7);
   const byRole = {};
   for (const u of creds.data.users) byRole[u.nickname] = u;
-  for (const who of ['buyer_nova', 'keymaster', 'sitee_admin', 'sitee_arbiter']) {
+  for (const who of ['buyer_nova', 'buyer_max', 'keymaster', 'sitee_admin', 'sitee_arbiter']) {
     const c = byRole[who];
     if (!c) {
       check(`вход ${who}`, false, 'нет в dev/credentials');
@@ -197,6 +197,14 @@ async function main() {
   check('WS: pong', !!(await ws.waitFor('pong', 3000)));
   ws.close();
 
+  const meSeller = await call('GET', '/api/v1/auth/me', { token: tokens.keymaster.access });
+  const safety = await call('GET', `/api/v1/e2ee/safety/${meSeller.data.id}`, { token: tokens.buyer_nova.access });
+  check('safety number для сверки ключей', safety.status === 200 && /^[0-9]{5}(-[0-9]{5}){7}$/.test(safety.data.safety_number ?? ''),
+    JSON.stringify(safety.data).slice(0, 140));
+  const readAll = await call('POST', '/api/v1/notifications/read-all', { token: tokens.buyer_nova.access });
+  check('прочитать все уведомления', readAll.status === 200 && readAll.data.unread === 0,
+    JSON.stringify(readAll.data).slice(0, 120));
+
   console.log('\n5. Спор: маскировка сторон, эскалация, решение арбитра');
   const order2 = await call('POST', '/api/v1/orders', {
     token: tokens.buyer_nova.access,
@@ -242,6 +250,18 @@ async function main() {
   check('заказ → refunded', resolve.data.order_status === 'refunded');
   const disputesList = await call('GET', '/api/v1/disputes', { token: tokens.buyer_nova.access });
   check('список споров покупателя', disputesList.data.items.length >= 1);
+  const evId = evidence.data.id ?? evidence.data.evidence_id;
+  const evGet = await call('GET', `/api/v1/disputes/${dispute.data.id}/evidence/${evId}`, {
+    token: tokens.buyer_nova.access,
+  });
+  check('доказательство читается участником', evGet.status === 200 && !!evGet.data.sha256,
+    JSON.stringify(evGet.data).slice(0, 140));
+  check('псевдоним загрузчика в доказательстве', /^Покупатель #/.test(evGet.data.uploader_visible_as ?? ''));
+  const evForbidden = await call('GET', `/api/v1/disputes/${dispute.data.id}/evidence/${evId}`, {
+    token: tokens.buyer_max.access,
+  });
+  check('не участник спора не читает доказательство', [403, 404].includes(evForbidden.status), `(${evForbidden.status})`);
+
 
   console.log('\n6. Обмен: кошелёк, SOL⇄Stars, подарки, Stars-инвойс');
   const quote = await call('GET', '/api/v1/exchange/quote?amount_sol=1', { token: tokens.buyer_nova.access });

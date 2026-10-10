@@ -134,41 +134,8 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: openapi валиден и покрывает маршруты
-        run: |
-          python3 - <<'PY'
-          import re, sys
-          spec = open('docs/openapi.yaml', encoding='utf-8').read()
-          paths = set(re.findall(r'^  (/[^:\n]*):', spec, re.M))
-          # Маршруты бэкенда — источник истины (internal/api/server.go).
-          # В спеке пути относительны к servers.base (/api/v1) — снимаем префикс.
-          go = open('backend/internal/api/server.go', encoding='utf-8').read()
-          pairs = re.findall(r'mux\.HandleFunc\("(GET|POST|PATCH|PUT|DELETE)\s+(/api/v1/[^"]*)"', go)
-          routes = {p[len('/api/v1'):] for _, p in pairs}
-          missing = sorted(routes - paths)
-          extra = sorted(paths - routes)
-          if missing or extra:
-              if missing:
-                  print('Нет в openapi.yaml:', *missing, sep='\n  ')
-              if extra:
-                  print('Нет в server.go:', *extra, sep='\n  ')
-              sys.exit(1)
-          # Каждый (путь, метод) должен быть описан операцией в спеке.
-          cur, ops = None, set()
-          for line in spec.split('\n'):
-              m = re.match(r'^  (/[^:\n]*):$', line)
-              if m:
-                  cur = m.group(1)
-                  continue
-              m = re.match(r'^    (get|post|patch|put|delete):$', line)
-              if m and cur:
-                  ops.add((cur, m.group(1)))
-          want = {(path, method.lower()) for method, path in pairs}
-          gap = sorted(want - ops)
-          if gap:
-              print('Не описаны операции:', *[f'{a.upper()} {b}' for b, a in gap], sep='\n  ')
-              sys.exit(1)
-          print(f'openapi.yaml покрывает {len(routes)} путей и {len(ops)} операций API')
-          PY
+        run: python3 tools/contract_check.py
+
       - name: базовые проверки спеки
         run: |
           grep -q '^openapi: 3.1.0' docs/openapi.yaml

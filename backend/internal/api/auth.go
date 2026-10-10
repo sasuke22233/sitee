@@ -1175,3 +1175,22 @@ func maxInt(a, b int) int {
 	}
 	return b
 }
+
+// handleNotificationsReadAll — отметить все уведомления прочитанными (FR-NAV-01).
+func (s *Server) handleNotificationsReadAll(w http.ResponseWriter, r *http.Request) {
+	u, ok := s.requireAuth(w, r)
+	if !ok {
+		return
+	}
+	count := 0
+	s.Store.Write(func() {
+		for _, n := range s.Store.Notifications[u.ID] {
+			if !n.Read {
+				n.Read = true
+				count++
+			}
+		}
+		u.UnreadChats = 0
+	})
+	httpx.JSON(w, http.StatusOK, map[string]any{"read": count, "unread": 0})
+}
