@@ -2632,6 +2632,14 @@ components:
         sanction_level: { type: string, enum: [warn, restrict, suspend, ban] }
         totp_code: { type: string, pattern: '^[0-9]{6}$' }
 
+    ShopCover:
+      type: object
+      description: 'Обложка магазина (FR-FEED-02). Если продавец не загрузил свою, сервер возвращает детерминированный SVG data-URI.'
+      properties:
+        cover_url:
+          type: string
+          description: 'URL или data:image/svg+xml — всегда заполнен'
+        accent: { type: string, example: '#6c5ce7' }
     Dispute:
       type: object
       properties:

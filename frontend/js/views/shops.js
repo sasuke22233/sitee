@@ -144,10 +144,15 @@ function card(shop, navigate) {
     onclick: () => navigate(`#/shop/${shop.id}`),
     onkeydown: (ev) => { if (ev.key === 'Enter') navigate(`#/shop/${shop.id}`); },
   },
-  h('div', { class: 'shop-card__cover', style: `--cover-a:${accent};--cover-b:${shade(accent)}` },
+  h('div', {
+    class: 'shop-card__cover',
+    style: shop.cover_url
+      ? `background-image:url('${shop.cover_url}');background-size:cover;background-position:center;--cover-a:${accent};--cover-b:${shade(accent)}`
+      : `--cover-a:${accent};--cover-b:${shade(accent)}`,
+  },
     shop.crown ? h('span', { class: 'shop-card__crown', title: 'Crown-магазин', text: '👑' }) : null,
     shop.verified ? h('span', { class: 'shop-card__verified', title: 'Верифицирован', text: '✔' }) : null,
-    h('span', { text: initials(shop.name) }),
+    shop.cover_url ? null : h('span', { text: initials(shop.name) }),
     shop.gift_boost > 0 ? h('span', { class: 'shop-card__boost chip chip--gold', text: `🎁 буст +${Math.round(shop.gift_boost * 100)} %` }) : null),
   h('div', { class: 'shop-card__name', text: shop.name, title: shop.name }),
   h('div', { class: 'shop-card__meta' },
@@ -225,7 +230,12 @@ export async function shop(container, { navigate }, params) {
   mount(container,
     h('div', { class: 'back', onclick: () => navigate('#/shops') }, '← К ленте магазинов'),
     h('div', { class: 'card' },
-      h('div', { class: 'shop-card__cover', style: `height:110px;--cover-a:${accent};--cover-b:${shade(accent)};margin-bottom:10px` },
+      h('div', {
+        class: 'shop-card__cover',
+        style: shop.cover_url
+          ? `height:110px;background-image:url('${shop.cover_url}');background-size:cover;background-position:center;--cover-a:${accent};--cover-b:${shade(accent)};margin-bottom:10px`
+          : `height:110px;--cover-a:${accent};--cover-b:${shade(accent)};margin-bottom:10px`,
+      },
         data.crown ? h('span', { class: 'shop-card__crown', text: '👑' }) : null,
         data.verified ? h('span', { class: 'shop-card__verified', text: '✔' }) : null,
         h('span', { style: 'font-size:34px', text: initials(data.name) })),

@@ -119,6 +119,43 @@ export function readBody(req, limit = 1 << 20) {
   });
 }
 
+// coverSvg — обложка магазина как data-URI SVG: градиент, геометрический узор
+// и инициалы названия (FR-FEED-02: «обложка, название, рейтинг, коронка»).
+// Генерируется на сервере, поэтому работает офлайн и без внешних CDN.
+export function coverSvg(seed, accent, name) {
+  const base = String(accent || '#6c5ce7').replace('#', '');
+  const num = parseInt(base.length === 3 ? base.split('').map((c) => c + c).join('') : base, 16) || 0x6c5ce7;
+  const a = `#${((num >> 16) & 255).toString(16).padStart(2, '0')}${((num >> 8) & 255).toString(16).padStart(2, '0')}${(num & 255).toString(16).padStart(2, '0')}`;
+  const dark = (v) => Math.max(0, v - 55);
+  const b = `#${dark((num >> 16) & 255).toString(16).padStart(2, '0')}${dark((num >> 8) & 255).toString(16).padStart(2, '0')}${dark(num & 255).toString(16).padStart(2, '0')}`;
+  let h = 0;
+  for (let i = 0; i < String(seed).length; i += 1) h = (h * 31 + String(seed).charCodeAt(i)) >>> 0;
+  const rnd = (n) => ((h = (h * 1103515245 + 12345) >>> 0) % n);
+  const initials = String(name || 'S')
+    .split(/\s+/).filter(Boolean).slice(0, 2).map((w) => w[0].toUpperCase()).join('')
+    || String(name || 'S').slice(0, 2).toUpperCase();
+  const shapes = [];
+  for (let i = 0; i < 5; i += 1) {
+    const cx = 20 + rnd(280);
+    const cy = 10 + rnd(70);
+    const r = 12 + rnd(38);
+    shapes.push(`<circle cx="${cx}" cy="${cy}" r="${r}" fill="#ffffff" opacity="${(0.04 + rnd(7) / 100).toFixed(2)}"/>`);
+  }
+  for (let i = 0; i < 3; i += 1) {
+    const x = rnd(300);
+    const y = rnd(80);
+    shapes.push(`<rect x="${x}" y="${y}" width="${18 + rnd(40)}" height="3" rx="1.5" fill="#ffffff" opacity="${(0.05 + rnd(6) / 100).toFixed(2)}"/>`);
+  }
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="320" height="160" viewBox="0 0 320 160">`
+    + `<defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1">`
+    + `<stop offset="0" stop-color="${a}"/><stop offset="1" stop-color="${b}"/></linearGradient></defs>`
+    + `<rect width="320" height="160" fill="url(#g)"/>`
+    + `${shapes.join('')}`
+    + `<text x="160" y="98" font-family="Inter,system-ui,sans-serif" font-size="52" font-weight="800"`
+    + ` fill="#ffffff" fill-opacity=".92" text-anchor="middle">${initials}</text></svg>`;
+  return `data:image/svg+xml;utf8,${encodeURIComponent(svg)}`;
+}
+
 // ---------------------------------------------------------------------------
 // Rate limiting (token bucket, профили из docs/security.md §8)
 // ---------------------------------------------------------------------------
@@ -446,7 +483,8 @@ export function shopCard(ctx, shop, viewerCountry = '') {
   const minPrice = products.length ? Math.min(...products.map((p) => p.price_sol)) : 0;
   return {
     id: shop.id, slug: shop.slug, name: shop.name, description: shop.description,
-    cover_url: shop.cover_url || null, avatar_url: shop.avatar_url || null,
+    cover_url: shop.cover_url || coverSvg(shop.id, shop.accent, shop.name),
+    avatar_url: shop.avatar_url || null,
     accent: shop.accent ?? '#6c5ce7',
     rating: Number(shop.rating_bayes.toFixed(2)), rating_count: shop.rating_count,
     crown: isCrowned(ctx, shop), verified: shop.is_verified,

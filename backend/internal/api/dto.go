@@ -1,6 +1,7 @@
 package api
 
 import (
+	"net/url"
 	"crypto/hmac"
 	"crypto/sha256"
 	"fmt"
@@ -155,6 +156,104 @@ func norm(v, lo, hi float64) float64 {
 func round1(v float64) float64 { return math.Round(v*10) / 10 }
 
 // shopCardLocked — карточка магазина для ленты (FR-FEED-02).
+// coverURL — обложка магазина как data-URI SVG (FR-FEED-02: обложка, название,
+// рейтинг, коронка). Если продавец не загрузил свою, генерируем детерминированную
+// из акцента и инициалов: работает офлайн и без внешних CDN.
+// Зеркалирует coverSvg в tools/preview/lib.mjs.
+func coverURL(sh *store.Shop) string {
+	if sh.CoverURL != "" {
+		return sh.CoverURL
+	}
+	// Акцент берём из палитры по хэшу id — детерминированно и без правок схемы.
+	palette := []string{"6c5ce7", "2f80ed", "219653", "b7791f", "c53030", "805ad5", "03888e", "d53f8c"}
+	var ph uint32 = 2166136261
+	for _, c := range sh.ID {
+		ph = ph*16777619 ^ uint32(c)
+	}
+	accent := palette[int(ph)%len(palette)]
+	var num int64
+	for _, c := range accent {
+		var v int64
+		switch {
+		case c >= '0' && c <= '9':
+			v = int64(c - '0')
+		case c >= 'a' && c <= 'f':
+			v = int64(c-'a') + 10
+		case c >= 'A' && c <= 'F':
+			v = int64(c-'A') + 10
+		default:
+			v = 0
+		}
+		num = num*16 + v
+	}
+	hex := func(v int64) string {
+		if v < 0 {
+			v = 0
+		}
+		const digits = "0123456789abcdef"
+		return string([]byte{digits[(v>>4)&0xf], digits[v&0xf]})
+	}
+	top := "#" + hex((num>>16)&0xff) + hex((num>>8)&0xff) + hex(num&0xff)
+	dark := func(v int64) int64 {
+		if v < 55 {
+			return 0
+		}
+		return v - 55
+	}
+	bottom := "#" + hex(dark((num>>16)&0xff)) + hex(dark((num>>8)&0xff)) + hex(dark(num&0xff))
+
+	var h uint32 = 2166136261
+	for _, c := range sh.ID {
+		h = h*16777619 ^ uint32(c)
+	}
+	rnd := func(n int) int {
+		h = h*1103515245 + 12345
+		return int(h % uint32(n))
+	}
+	var b strings.Builder
+	for i := 0; i < 5; i++ {
+		fmt.Fprintf(&b, `<circle cx="%d" cy="%d" r="%d" fill="#ffffff" opacity="0.%02d"/>`,
+			20+rnd(280), 10+rnd(70), 12+rnd(38), 4+rnd(7))
+	}
+	for i := 0; i < 3; i++ {
+		fmt.Fprintf(&b, `<rect x="%d" y="%d" width="%d" height="3" rx="1.5" fill="#ffffff" opacity="0.%02d"/>`,
+			rnd(300), rnd(80), 18+rnd(40), 5+rnd(6))
+	}
+	initials := shopInitials(sh.Name)
+	svg := `<svg xmlns="http://www.w3.org/2000/svg" width="320" height="160" viewBox="0 0 320 160">` +
+		`<defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1">` +
+		`<stop offset="0" stop-color="` + top + `"/><stop offset="1" stop-color="` + bottom + `"/>` +
+		`</linearGradient></defs><rect width="320" height="160" fill="url(#g)"/>` + b.String() +
+		`<text x="160" y="98" font-family="Inter,system-ui,sans-serif" font-size="52" ` +
+		`font-weight="800" fill="#ffffff" fill-opacity=".92" text-anchor="middle">` + initials +
+		`</text></svg>`
+	return "data:image/svg+xml;utf8," + url.QueryEscape(svg)
+}
+
+// shopInitials — до двух первых букв слов названия («КлючМастер» → «КМ»).
+func shopInitials(name string) string {
+	words := strings.Fields(name)
+	var out []string
+	for _, w := range words {
+		if w == "" {
+			continue
+		}
+		r := []rune(w)
+		out = append(out, strings.ToUpper(string(r[0])))
+		if len(out) == 2 {
+			break
+		}
+	}
+	if len(out) == 0 {
+		r := []rune(name)
+		if len(r) > 2 {
+			r = r[:2]
+		}
+		return strings.ToUpper(string(r))
+	}
+	return strings.Join(out, "")
+}
+
 func (s *Server) shopCardLocked(sh *store.Shop, viewerCountry string) map[string]any {
 	city := ""
 	if c, ok := s.Store.Cities[sh.CityID]; ok {
@@ -190,7 +289,7 @@ func (s *Server) shopCardLocked(sh *store.Shop, viewerCountry string) map[string
 	}
 	return map[string]any{
 		"id": sh.ID, "slug": sh.Slug, "name": sh.Name,
-		"cover_url":   sh.CoverURL,
+		"cover_url":   coverURL(sh),
 		"avatar_url":  sh.AvatarURL,
 		"rating":      round1(sh.RatingBayes),
 		"rating_count": sh.RatingCount,

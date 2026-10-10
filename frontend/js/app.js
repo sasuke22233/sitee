@@ -223,12 +223,26 @@ function bindLiveEvents(navigateRef) {
 // Загрузка
 // ---------------------------------------------------------------------------
 async function boot() {
+  // Если boot завис (сеть, блокировка запроса, ошибка в модуле) — показываем причину,
+  // а не вечный сплэш («превью как будто не загружено»).
+  const stall = setTimeout(() => {
+    if (S.booted) return;
+    mount(view, empty('⏳', 'Запуск занимает дольше обычного',
+      'Нет ответа от API. Проверьте сеть или перезапустите preview-сервер '
+      + '(npm run start:demo в tools/preview). Детали — в консоли браузера.'),
+      h('button', {
+        class: 'btn btn--primary', type: 'button', text: 'Повторить',
+        onclick: () => location.reload(),
+      }));
+  }, 8000);
   try {
     await start();
   } catch (err) {
     console.error('[sitee] boot failed', err);
     mount(view, empty('⚠️', 'Не удалось запустить SITEE',
       `${describeError(err)} Обновите страницу или откройте инструмент заново.`));
+  } finally {
+    clearTimeout(stall);
   }
 }
 
