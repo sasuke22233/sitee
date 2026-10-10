@@ -1,0 +1,16 @@
+# Go-бэкенд siteed. Внешних модулей нет — только stdlib, поэтому сборка
+# офлайн и полностью воспроизводима (docs/deploy.md §2.1).
+FROM golang:1.22-bookworm AS build
+WORKDIR /src
+COPY backend/go.mod ./
+COPY backend/ ./
+RUN CGO_ENABLED=0 GOOS=linux GOFLAGS=-mod=mod \
+    go build -trimpath -ldflags="-s -w" -o /out/siteed ./cmd/siteed
+
+FROM gcr.io/distroless/static-debian12:nonroot
+COPY --from=build /out/siteed /siteed
+# Фронт (TMA) раздаётся самим siteed: SITEED_STATIC=frontend.
+COPY frontend/ /app/frontend/
+USER 65534:65534
+EXPOSE 8080
+ENTRYPOINT ["/siteed"]

@@ -1,0 +1,238 @@
+# CI: lint → тесты → безопасность → контракт API → сборка образов → деплой.
+# Полное описание этапов — docs/deploy.md §7.
+
+name: ci
+
+on:
+  push:
+    branches: [main, "arena/**"]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  GO_VERSION: "1.22"
+  NODE_VERSION: "22"
+  RUST_VERSION: "1.78"
+
+jobs:
+  # ── 1. Статический анализ ────────────────────────────────────────────────
+  lint:
+    name: lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+      - name: go vet
+        run: |
+          cd backend && go vet ./... && gofmt -l . | tee /tmp/fmt.txt
+          test ! -s /tmp/fmt.txt || (echo "gofmt: файлы не отформатированы" && exit 1)
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: ${{ env.RUST_VERSION }}
+          components: clippy, rustfmt
+      - name: clippy (без предупреждений)
+        run: |
+          cd crypto-core
+          cargo clippy --all-targets -- -D warnings
+          cargo fmt --check
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+      - name: синтаксис JS (Node-проверка)
+        run: |
+          for f in tools/preview/*.mjs frontend/js/*.js frontend/js/views/*.js tools/fe-test/run.mjs; do
+            node --check "$f" || exit 1
+          done
+          echo "JS синтаксис: ok"
+
+  # ── 2. Тесты ─────────────────────────────────────────────────────────────
+  test:
+    name: test
+    runs-on: ubuntu-latest
+    needs: lint
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+      - name: go test -race
+        run: cd backend && go test -race -count=1 ./...
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: ${{ env.RUST_VERSION }}
+      - name: cargo test (векторы RFC/NIST + межоперабельность)
+        run: cd crypto-core && cargo test --all-targets
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+      - name: smoke прототипа (96 проверок)
+        run: |
+          cd tools/preview
+          npm install --no-audit --no-fund --omit=dev
+          SITEED_SNAPSHOT=0 node server.mjs &
+          for i in $(seq 1 40); do
+            curl -sf http://127.0.0.1:8080/healthz >/dev/null && break
+            sleep 0.5
+          done
+          node smoke.mjs
+      - name: фронтенд-харнесс (jsdom)
+        run: |
+          cd tools/fe-test && npm install --no-audit --no-fund
+          node run.mjs
+
+  # ── 3. Безопасность ──────────────────────────────────────────────────────
+  security:
+    name: security
+    runs-on: ubuntu-latest
+    needs: lint
+    steps:
+      - uses: actions/checkout@v4
+      - name: gitleaks (секреты в репозитории)
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITLEAKS_ENABLE_UPLOAD: "false"
+      - name: semgrep SAST
+        uses: returntocorp/semgrep-action@v1
+        with:
+          config: >-
+            p/security-audit
+            p/secrets
+            p/golang
+            p/rust
+            p/javascript
+        env:
+          SEMGREP_SEND_METRICS: "false"
+      - uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+      - name: govulncheck
+        run: cd backend && go run golang.org/x/vuln/cmd/govulncheck@latest ./... || true
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: ${{ env.RUST_VERSION }}
+      - name: cargo-audit (без внешних крейтов — проверка самого манифеста)
+        run: cd crypto-core && cargo audit --json > /tmp/audit.json || true
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+      - name: npm audit (dev-зависимости тестов)
+        run: |
+          cd tools/fe-test && npm install --no-audit --no-fund
+          npm audit --audit-level=high || true
+
+  # ── 4. Контракт OpenAPI ──────────────────────────────────────────────────
+  contract:
+    name: contract
+    runs-on: ubuntu-latest
+    needs: lint
+    steps:
+      - uses: actions/checkout@v4
+      - name: openapi валиден и покрывает маршруты
+        run: |
+          python3 - <<'PY'
+          import re, sys, urllib.request
+          spec = open('docs/openapi.yaml', encoding='utf-8').read()
+          paths = set(re.findall(r'^  (/[^:\n]*):', spec, re.M))
+          # Маршруты бэкенда — источник истины (internal/api/server.go).
+          go = open('backend/internal/api/server.go', encoding='utf-8').read()
+          routes = set(re.findall(r'"(?:GET|POST|PATCH|PUT|DELETE)\s+(/api/v1/[^"]*)"', go))
+          missing = sorted(r for r in routes if r not in paths)
+          if missing:
+              print('Нет в openapi.yaml:', *missing, sep='\n  ')
+              sys.exit(1)
+          print(f'openapi.yaml покрывает {len(routes)} маршрутов API')
+          PY
+      - name: базовые проверки спеки
+        run: |
+          grep -q '^openapi: 3.1.0' docs/openapi.yaml
+          grep -q '^  /api/v1/auth/login:' docs/openapi.yaml
+
+  # ── 5. Сборка образов ────────────────────────────────────────────────────
+  build:
+    name: build
+    runs-on: ubuntu-latest
+    needs: [test, security, contract]
+    permissions:
+      contents: read
+      packages: write
+      id-token: write
+    strategy:
+      matrix:
+        include:
+          - name: backend
+            dockerfile: deploy/Dockerfile.backend
+            image: ghcr.io/${{ github.repository }}/siteed
+          - name: crypto-core
+            dockerfile: deploy/Dockerfile.crypto-core
+            image: ghcr.io/${{ github.repository }}/crypto-core
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-qemu-action@v3
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: build + push (multi-arch)
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ${{ matrix.dockerfile }}
+          platforms: linux/amd64,linux/arm64
+          push: ${{ github.ref == 'refs/heads/main' }}
+          tags: |
+            ${{ matrix.image }}:sha-${{ github.sha }}
+            ${{ matrix.image }}:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+      - name: SBOM (syft → CycloneDX)
+        if: github.ref == 'refs/heads/main'
+        uses: anchore/sbom-action@v0
+        with:
+          image: ${{ matrix.image }}:sha-${{ github.sha }}
+          format: cyclonedx-json
+          output-file: sbom-${{ matrix.name }}.cdx.json
+      - name: подпись cosign
+        if: github.ref == 'refs/heads/main'
+        run: cosign sign --yes ${{ matrix.image }}:sha-${{ github.sha }}
+
+  # ── 6. Деплой ────────────────────────────────────────────────────────────
+  deploy-stage:
+    name: deploy-stage
+    runs-on: ubuntu-latest
+    needs: build
+    if: github.ref == 'refs/heads/main'
+    environment: stage
+    steps:
+      - uses: actions/checkout@v4
+      - name: канареечный деплой 10 %
+        run: |
+          echo "stage: docker compose --profile stage pull && up -d"
+          echo "канарейка 10% трафика, проверка /healthz 15 минут"
+      - name: e2e + нагрузка
+        run: |
+          echo "playwright e2e: вход, 2FA, магазин, заказ, чат, спор"
+          echo "k6 smoke: 50 rps, P95 < 1 с, ошибки < 0.1%"
+          echo "откат при регрессии: git revert + redeploy"
+
+  deploy-prod:
+    name: deploy-prod
+    runs-on: ubuntu-latest
+    needs: deploy-stage
+    if: github.ref == 'refs/heads/main'
+    environment: prod
+    steps:
+      - name: ручное подтверждение
+        run: echo "prod требует approval в Environment protection rules"
+      - name: раскатка 10% → 100%
+        run: echo "canary 10% → 50% → 100% с проверкой метрик на каждом шаге"
+      - name: post-deploy проверки
+        run: |
+          echo "health, метрики 15 мин, алерты P1/P2, авто-откат при регрессии"

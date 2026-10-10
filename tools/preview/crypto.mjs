@@ -285,9 +285,18 @@ export function depositPath(index) {
   return `m/44'/501'/${index}'/0'`;
 }
 
+// pubFromSeed — ed25519 публичный ключ из 32-байтного seed (RFC 8032).
+// Нужен, чтобы адрес был base58 ПУБЛИЧНОГО ключа, как в Go (cryptod) и Rust
+// (crypto-core): адрес должен быть настоящим Solana-адресом, а не base58 seed.
+function pubFromSeed(seed) {
+  const der = Buffer.concat([Buffer.from('302e020100300506032b657004220420', 'hex'), seed]);
+  const priv = crypto.createPrivateKey({ key: der, format: 'der', type: 'pkcs8' });
+  return crypto.createPublicKey({ key: priv }).export({ format: 'der', type: 'spki' }).subarray(12);
+}
+
 export function addressForPath(path) {
   const seed = hkdf(KEK, Buffer.from('sitee-solana-v1'), Buffer.from('path:' + path), 32);
-  return base58Encode(seed);
+  return base58Encode(pubFromSeed(seed));
 }
 
 export function isValidAddress(addr) {

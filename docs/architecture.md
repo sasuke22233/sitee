@@ -120,6 +120,41 @@ backend/
     └── antifraud/                # скоринг, лимиты, гео-блок, honeypot-логика
 ```
 
+### 3.1 Что фактически лежит в этом репозитории
+
+Дерево выше — целевая раскладка продакшена. В репозитории (MVP) реализация уложена
+плоско, без дробления по доменным пакетам, но с тем же разделением слоёв:
+
+```
+sitee/
+├── backend/                         # Go (stdlib only)
+│   ├── cmd/siteed/main.go
+│   └── internal/
+│       ├── api/                     # HTTP + WS: server, auth, shops, orders,
+│       │                             # messenger, disputes, economy, admin, ws, jobs
+│       ├── platform/                # httpx (роутер/ошибки/JSON), wsx (WS-кадры), ids
+│       ├── store/                   # memory-store + ledger (двойная запись) + статусы
+│       ├── cryptod/                 # клиент Rust-ядра + pure-Go fallback (те же форматы)
+│       ├── antifraud/               # скоринг 0…1000, лимиты, гео и honeypot
+│       ├── config/                  # env-конфигурация
+│       └── seed/                    # демо-данные (магазины, товары, пользователи)
+├── crypto-core/                     # Rust (без внешних крейтов), 21 модуль + сервис
+│   ├── src/{base64,rand,sha1,sha256,sha512,hmac,hkdf,pbkdf2}.rs
+│   ├── src/{aes256,gcm,envelope,blind,totp}.rs
+│   ├── src/{ed25519,solana,safety,audit,dispute,fraud,ratelimit,json}.rs
+│   ├── src/lib.rs, src/main.rs      # main.rs — HTTP-сервис ядра (см. §2.2)
+│   └── tests/interop.rs             # RFC/NIST векторы + сквозная проверка форматов
+├── frontend/                        # Telegram Mini App: SPA без сборки, E2EE на WebCrypto
+├── tools/preview/                   # Node-зеркало API для живого предпросмотра
+├── tools/fe-test/                   # headless-харнесс: 34 экрана, 0 проблем
+├── deploy/                          # Dockerfile'ы, compose, nginx, .env.example
+└── docs/                            # ТЗ и все приложения (A…J)
+```
+
+Переход на целевую раскладку — механический: пакеты `shop`, `order`, `wallet`,
+`messenger`, `dispute`, `stars`, `gift`, `review`, `admin` берут методы из
+соответствующих файлов `internal/api/*.go`, а `store` уже вынесен.
+
 Правило зависимостей: `admin` → домены; домены → `ledger`, `store`, `cryptod`, `platform`;
 `ledger` не знает о HTTP. Никаких циклов. Каждый модуль имеет свой набор ошибок и свой
 набор событий в шину.

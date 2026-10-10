@@ -1,0 +1,149 @@
+# SITEE dev/stage топология (docs/deploy.md §3).
+#   COMPOSE_PROFILES=dev|stage  docker compose --env-file .env up -d
+#
+# dev  — всё локально: postgres, redis, minio, crypto-core (Rust), siteed (Go), nginx.
+# stage — то же + worker и sol-scanner, образы из registry, секреты из .env.
+
+name: sitee
+
+x-logging: &logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "5"
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    profiles: [dev, stage]
+    environment:
+      POSTGRES_DB: sitee
+      POSTGRES_USER: siteed
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-siteed}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U siteed -d sitee"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    logging: *logging
+
+  redis:
+    image: redis:7-alpine
+    profiles: [dev, stage]
+    command: ["redis-server", "--save", "", "--appendonly", "no"]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+    logging: *logging
+
+  minio:
+    image: minio/minio:latest
+    profiles: [dev, stage]
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: ${S3_ACCESS_KEY:-minioadmin}
+      MINIO_ROOT_PASSWORD: ${S3_SECRET_KEY:-minioadmin}
+    volumes:
+      - miniodata:/data
+    logging: *logging
+
+  crypto-core:
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile.crypto-core
+    profiles: [dev, stage]
+    environment:
+      SITEED_KEK_HEX: ${SITEED_KEK_HEX}
+    expose:
+      - "8091"
+    healthcheck:
+      # distroless не имеет curl/wget: проверка через /dev/tcp невозможна,
+      # поэтому здоровье контролирует siteed (fallback при недоступности).
+      disable: true
+    logging: *logging
+
+  siteed:
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile.backend
+    profiles: [dev, stage]
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      crypto-core:
+        condition: service_started
+    environment:
+      SITEED_ADDR: 0.0.0.0:8080
+      SITEED_ENV: ${SITEED_ENV:-dev}
+      SITEED_STATIC: /app/frontend
+      SITEED_DSN: ${SITEED_DSN:-}
+      CRYPTO_CORE_URL: ${CRYPTO_CORE_URL:-http://crypto-core:8091}
+      CRYPTO_CORE_TOKEN: ${CRYPTO_CORE_TOKEN:-dev-service-token}
+      SITEED_KEK_HEX: ${SITEED_KEK_HEX}
+      REDIS_ADDR: redis:6379
+      JWT_PRIVATE_KEY: ${JWT_PRIVATE_KEY:-}
+      JWT_KID: ${JWT_KID:-dev-2026}
+      TG_BOT_TOKEN: ${TG_BOT_TOKEN:-}
+      SOLANA_RPC_URLS: ${SOLANA_RPC_URLS:-https://api.devnet.solana.com}
+      SOL_HOT_WALLET_ID: ${SOL_HOT_WALLET_ID:-wlt_hot}
+      S3_ENDPOINT: http://minio:9000
+      S3_BUCKET: ${S3_BUCKET:-sitee}
+      S3_ACCESS_KEY: ${S3_ACCESS_KEY:-minioadmin}
+      S3_SECRET_KEY: ${S3_SECRET_KEY:-minioadmin}
+      S3_USE_PATH_STYLE: "true"
+      FEATURE_FLAGS: ${FEATURE_FLAGS:-stars=on,e2ee=on,exchange=on}
+      SITEED_RATE_SCALE: ${SITEED_RATE_SCALE:-1}
+    ports:
+      - "8080:8080"
+    logging: *logging
+
+  worker:
+    image: ${SITEED_IMAGE:-siteed}:${SITEED_TAG:-dev}
+    profiles: [stage]
+    command: ["/siteed", "worker"]
+    depends_on:
+      - siteed
+    environment:
+      SITEED_DSN: ${SITEED_DSN:-}
+      REDIS_ADDR: redis:6379
+      CRYPTO_CORE_URL: ${CRYPTO_CORE_URL:-http://crypto-core:8091}
+      SITEED_KEK_HEX: ${SITEED_KEK_HEX}
+      SOLANA_RPC_URLS: ${SOLANA_RPC_URLS:-https://api.devnet.solana.com}
+    logging: *logging
+
+  sol-scanner:
+    image: ${SITEED_IMAGE:-siteed}:${SITEED_TAG:-dev}
+    profiles: [stage]
+    command: ["/siteed", "sol-scanner"]
+    depends_on:
+      - siteed
+    environment:
+      SITEED_DSN: ${SITEED_DSN:-}
+      REDIS_ADDR: redis:6379
+      SOLANA_RPC_URLS: ${SOLANA_RPC_URLS:-https://api.devnet.solana.com}
+    logging: *logging
+
+  nginx:
+    image: nginx:1.27-alpine
+    profiles: [dev, stage]
+    depends_on:
+      - siteed
+    ports:
+      - "8443:443"
+      - "8080:80"
+    volumes:
+      - ./nginx/sitee.conf:/etc/nginx/conf.d/default.conf:ro
+      - ./nginx/snippets/proxy.conf:/etc/nginx/snippets/proxy.conf:ro
+      - ../frontend:/app/frontend:ro
+      - ./tls:/etc/nginx/tls:ro
+    logging: *logging
+
+volumes:
+  pgdata:
+  miniodata:
