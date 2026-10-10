@@ -61,7 +61,8 @@ cd tools/preview && npm start                        # http://0.0.0.0:8080
 # npm start поднимает супервизор: он держит сервер живым (перезапуск при падении
 # за 1 с) и пингует healthz раз в 30 с, чтобы превью не «засыпало».
 # Полезные переменные: SITEED_RATE_SCALE=6 (лимиты ×6 для тестов),
-# SITEED_SNAPSHOT=0 (не загружать снапшот), SITEED_FRONTEND_DIR=путь до frontend.
+# SITEED_SNAPSHOT=0 (не загружать снапшот), SITEED_FRONTEND_DIR=путь до frontend,
+# SITEED_ADDR=0.0.0.0:8099 (если порт 8080 занят — слушать другой).
 #
 # npm start:demo — готовый демо-стенд (SITEED_RATE_SCALE=6 SITEED_SNAPSHOT=0);
 #             именно с ним гоняются tools/preview/smoke.mjs и tools/fe-test/run.mjs,

@@ -9,7 +9,14 @@
 import { spawn } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 
-const PORT = Number(process.env.PORT ?? process.env.ADDR?.split(':').pop() ?? 8080);
+// Порт берётся из SITEED_ADDR (0.0.0.0:8080) — той же переменной, что читает
+// server.mjs; PORT оставлен как удобный алиас для «просто поменяй порт».
+const PORT = Number(
+  process.env.PORT ??
+    process.env.SITEED_ADDR?.split(':').pop() ??
+    process.env.ADDR?.split(':').pop() ??
+    8080,
+);
 const KEEPALIVE_MS = 30_000;
 
 let child = null;
