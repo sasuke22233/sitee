@@ -155,6 +155,9 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GITLEAKS_ENABLE_UPLOAD_ARTIFACT: "false"
           GITLEAKS_ENABLE_COMMENTS: "false"
+          # Пример окружения нарочно состоит из подставных значений — они
+          # снимаются allowlist'ом в .gitleaks.toml.
+          GITLEAKS_CONFIG: .gitleaks.toml
       - name: semgrep SAST
         uses: returntocorp/semgrep-action@v1
         with:
