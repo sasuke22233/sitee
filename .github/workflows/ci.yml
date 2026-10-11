@@ -148,16 +148,28 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: gitleaks (секреты в репозитории)
-        uses: gitleaks/gitleaks-action@v3
-        env:
-          # Токен уходит через env (у действия нет inputs), иначе оно падает
-          # с «GITHUB_TOKEN is now required to scan pull requests».
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          GITLEAKS_ENABLE_UPLOAD_ARTIFACT: "false"
-          GITLEAKS_ENABLE_COMMENTS: "false"
-          # Пример окружения нарочно состоит из подставных значений — они
-          # снимаются allowlist'ом в .gitleaks.toml.
-          GITLEAKS_CONFIG: .gitleaks.toml
+        run: |
+          # Запускаем CLI напрямую, а не через gitleaks-action: действие при
+          # находке даёт только «Unexpected exit code [1]» без единой строки
+          # вывода, и понять что именно нашлось невозможно. Здесь вывод едет
+          # в аннотации тем же gzip+base64 механизмом, что и линты.
+          ver=8.30.1
+          curl -sSfL "https://github.com/gitleaks/gitleaks/releases/download/v${ver}/gitleaks_${ver}_linux_x64.tar.gz" -o /tmp/gl.tgz
+          mkdir -p /tmp/glbin
+          tar -xzf /tmp/gl.tgz -C /tmp/glbin gitleaks
+          out=$(/tmp/glbin/gitleaks detect --no-banner --source . \
+            --config .gitleaks.toml --redact 2>&1) || true
+          printf '%s\n' "$out"
+          if printf '%s' "$out" | grep -qi "leaks found"; then
+            b64=$(printf '%s\n' "$out" | gzip -9 | base64 -w0)
+            n=$(( (${#b64} + 3999) / 4000 ))
+            i=0
+            while [ $i -lt $n ]; do
+              echo "::notice title=gitleaks $((i+1))/$n::${b64:$((i*4000)):4000}"
+              i=$((i+1))
+            done
+            exit 1
+          fi
       - name: semgrep SAST
         uses: returntocorp/semgrep-action@v1
         with:
