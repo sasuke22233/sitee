@@ -22,21 +22,21 @@ import (
 
 // Домены шифрования (соответствуют KEK-доменам, docs/security.md §2).
 const (
-	DomainPII         = "pii"
-	Domain2FA         = "2fa"
-	DomainMessage     = "msg"
+	DomainPII          = "pii"
+	Domain2FA          = "2fa"
+	DomainMessage      = "msg"
 	DomainProductStock = "product_stock"
-	DomainDispute     = "dispute"
-	DomainWallet      = "wallet"
-	DomainAudit       = "audit"
+	DomainDispute      = "dispute"
+	DomainWallet       = "wallet"
+	DomainAudit        = "audit"
 )
 
 // Роли пользователей.
 const (
-	RoleBuyer     = "buyer"
-	RoleShopAdmin = "shop_admin"
-	RoleModerator = "moderator"
-	RoleArbiter   = "arbiter"
+	RoleBuyer      = "buyer"
+	RoleShopAdmin  = "shop_admin"
+	RoleModerator  = "moderator"
+	RoleArbiter    = "arbiter"
 	RoleSuperAdmin = "superadmin"
 )
 
@@ -74,46 +74,46 @@ type City struct {
 
 // Factor — фактор 2FA (FR-2FA-01: два независимых TOTP-секрета).
 type Factor struct {
-	Name         string           `json:"name"`                    // login | ops
-	SecretCT     string           `json:"secret_ct"`               // envelope, домен 2fa
-	Status       string           `json:"status"`                  // pending | active | revoked
+	Name         string           `json:"name"`      // login | ops
+	SecretCT     string           `json:"secret_ct"` // envelope, домен 2fa
+	Status       string           `json:"status"`    // pending | active | revoked
 	BackupHashes []string         `json:"backup_hashes,omitempty"`
 	BackupUsed   map[int]bool     `json:"backup_used,omitempty"`
-	UsedCodes    map[string]int64 `json:"used_codes,omitempty"`    // анти-replay: hash -> unix expiry
+	UsedCodes    map[string]int64 `json:"used_codes,omitempty"` // анти-replay: hash -> unix expiry
 	Fails        int              `json:"fails"`
 	LockedUntil  time.Time        `json:"locked_until,omitempty"`
 	EnrolledAt   time.Time        `json:"enrolled_at,omitempty"`
 	LastUsedAt   time.Time        `json:"last_used_at,omitempty"`
-	PendingCodes []string         `json:"-"`                       // коды, введённые при активации
+	PendingCodes []string         `json:"-"` // коды, введённые при активации
 }
 
 // User — пользователь площадки.
 type User struct {
-	ID             string            `json:"id"`
-	EmailCT        string            `json:"email_ct,omitempty"`
-	EmailIdx       string            `json:"email_idx,omitempty"`
-	Nickname       string            `json:"nickname"`
-	TGID           int64             `json:"tg_id,omitempty"`
-	TGUsername     string            `json:"tg_username,omitempty"`
-	PasswordHash   string            `json:"password_hash"`
-	Role           string            `json:"role"`
-	Country        string            `json:"country,omitempty"`
-	CityID         int64             `json:"city_id,omitempty"`
-	Locale         string            `json:"locale"`
-	Theme          string            `json:"theme"`
-	Status         string            `json:"status"` // pending|active|restricted|suspended|banned|deleted
+	ID             string             `json:"id"`
+	EmailCT        string             `json:"email_ct,omitempty"`
+	EmailIdx       string             `json:"email_idx,omitempty"`
+	Nickname       string             `json:"nickname"`
+	TGID           int64              `json:"tg_id,omitempty"`
+	TGUsername     string             `json:"tg_username,omitempty"`
+	PasswordHash   string             `json:"password_hash"`
+	Role           string             `json:"role"`
+	Country        string             `json:"country,omitempty"`
+	CityID         int64              `json:"city_id,omitempty"`
+	Locale         string             `json:"locale"`
+	Theme          string             `json:"theme"`
+	Status         string             `json:"status"` // pending|active|restricted|suspended|banned|deleted
 	Factors        map[string]*Factor `json:"factors,omitempty"`
-	Seq            uint64            `json:"seq"`              // индекс HD-деривации депозитного адреса
-	DepositAddress string            `json:"deposit_address,omitempty"`
-	DepositPath    string            `json:"deposit_path,omitempty"`
-	RiskScore      int               `json:"risk_score"`
-	Is18Plus       bool              `json:"is_18plus"`
-	WarmupUntil    time.Time         `json:"warmup_until,omitempty"`
-	ReferredBy     string            `json:"referred_by,omitempty"`
-	UnreadChats    int               `json:"unread_chats"`
-	CreatedAt      time.Time         `json:"created_at"`
-	LastLoginAt    time.Time         `json:"last_login_at,omitempty"`
-	LastOpsCheck   time.Time         `json:"last_ops_check,omitempty"`
+	Seq            uint64             `json:"seq"` // индекс HD-деривации депозитного адреса
+	DepositAddress string             `json:"deposit_address,omitempty"`
+	DepositPath    string             `json:"deposit_path,omitempty"`
+	RiskScore      int                `json:"risk_score"`
+	Is18Plus       bool               `json:"is_18plus"`
+	WarmupUntil    time.Time          `json:"warmup_until,omitempty"`
+	ReferredBy     string             `json:"referred_by,omitempty"`
+	UnreadChats    int                `json:"unread_chats"`
+	CreatedAt      time.Time          `json:"created_at"`
+	LastLoginAt    time.Time          `json:"last_login_at,omitempty"`
+	LastOpsCheck   time.Time          `json:"last_ops_check,omitempty"`
 }
 
 // HasFactor сообщает, активен ли фактор.
@@ -147,19 +147,19 @@ type Enrollment struct {
 
 // Session — сессия пользователя.
 type Session struct {
-	ID            string    `json:"id"`
-	UserID        string    `json:"user_id"`
-	DeviceID      string    `json:"device_id,omitempty"`
-	Status        string    `json:"status"` // pending_code|pending_2fa_login|pending_2fa_ops|active|revoked|expired
-	FactorOpsOK   bool      `json:"factor_ops_ok"`
-	FactorOpsAt   time.Time `json:"factor_ops_at,omitempty"`
-	IP            string    `json:"ip,omitempty"`
-	Geo           string    `json:"geo,omitempty"`
-	UA            string    `json:"ua,omitempty"`
-	CreatedAt     time.Time `json:"created_at"`
-	ExpiresAt     time.Time `json:"expires_at"`
-	RevokedAt     time.Time `json:"revoked_at,omitempty"`
-	RevokeReason  string    `json:"revoke_reason,omitempty"`
+	ID           string    `json:"id"`
+	UserID       string    `json:"user_id"`
+	DeviceID     string    `json:"device_id,omitempty"`
+	Status       string    `json:"status"` // pending_code|pending_2fa_login|pending_2fa_ops|active|revoked|expired
+	FactorOpsOK  bool      `json:"factor_ops_ok"`
+	FactorOpsAt  time.Time `json:"factor_ops_at,omitempty"`
+	IP           string    `json:"ip,omitempty"`
+	Geo          string    `json:"geo,omitempty"`
+	UA           string    `json:"ua,omitempty"`
+	CreatedAt    time.Time `json:"created_at"`
+	ExpiresAt    time.Time `json:"expires_at"`
+	RevokedAt    time.Time `json:"revoked_at,omitempty"`
+	RevokeReason string    `json:"revoke_reason,omitempty"`
 }
 
 // Active — сессия действительна.
@@ -215,61 +215,61 @@ type RentSub struct {
 
 // Shop — магазин цифровых товаров, привязанный к админу (FR-SHOP-02).
 type Shop struct {
-	ID                string    `json:"id"`
-	AdminUserID       string    `json:"admin_user_id"`
-	Slug              string    `json:"slug"`
-	Name              string    `json:"name"`
-	Description       string    `json:"description"`
-	CoverURL          string    `json:"cover_url,omitempty"`
-	AvatarURL         string    `json:"avatar_url,omitempty"`
-	CategoryIDs       []int64   `json:"category_ids"`
-	Country           string    `json:"country,omitempty"`
-	CityID            int64     `json:"city_id,omitempty"`
-	TZ                string    `json:"tz"`
-	Status            string    `json:"status"` // draft|moderation|active|frozen|suspended|banned
-	IsVerified        bool      `json:"is_verified"`
-	RatingSum         int64     `json:"rating_sum"`
-	RatingCount       int       `json:"rating_count"`
-	RatingBayes       float64   `json:"rating_bayes"`
-	SalesCount        int       `json:"sales_count"`
-	SalesVolumeLamport int64    `json:"sales_volume_sol"`
-	ResponseP50S      int       `json:"response_p50_s,omitempty"`
-	DisputeRate       float64   `json:"dispute_rate"`
-	GiftBoost         float64   `json:"gift_boost"`
-	GiftBoostUntil    time.Time `json:"gift_boost_until,omitempty"`
-	ComplaintPenalty  float64   `json:"complaint_penalty"`
-	DisputeLossPenalty float64  `json:"dispute_loss_penalty"`
-	SanctionLevel     string    `json:"sanction_level"`
-	SanctionUntil     time.Time `json:"sanction_until,omitempty"`
-	SanctionReason    string    `json:"sanction_reason,omitempty"`
-	AcceptsStars      bool      `json:"accepts_stars"`
-	Operators         []string  `json:"operators,omitempty"`
-	FeedScore         float64   `json:"feed_score"`
-	CreatedAt         time.Time `json:"created_at"`
-	UpdatedAt         time.Time `json:"updated_at"`
+	ID                 string    `json:"id"`
+	AdminUserID        string    `json:"admin_user_id"`
+	Slug               string    `json:"slug"`
+	Name               string    `json:"name"`
+	Description        string    `json:"description"`
+	CoverURL           string    `json:"cover_url,omitempty"`
+	AvatarURL          string    `json:"avatar_url,omitempty"`
+	CategoryIDs        []int64   `json:"category_ids"`
+	Country            string    `json:"country,omitempty"`
+	CityID             int64     `json:"city_id,omitempty"`
+	TZ                 string    `json:"tz"`
+	Status             string    `json:"status"` // draft|moderation|active|frozen|suspended|banned
+	IsVerified         bool      `json:"is_verified"`
+	RatingSum          int64     `json:"rating_sum"`
+	RatingCount        int       `json:"rating_count"`
+	RatingBayes        float64   `json:"rating_bayes"`
+	SalesCount         int       `json:"sales_count"`
+	SalesVolumeLamport int64     `json:"sales_volume_sol"`
+	ResponseP50S       int       `json:"response_p50_s,omitempty"`
+	DisputeRate        float64   `json:"dispute_rate"`
+	GiftBoost          float64   `json:"gift_boost"`
+	GiftBoostUntil     time.Time `json:"gift_boost_until,omitempty"`
+	ComplaintPenalty   float64   `json:"complaint_penalty"`
+	DisputeLossPenalty float64   `json:"dispute_loss_penalty"`
+	SanctionLevel      string    `json:"sanction_level"`
+	SanctionUntil      time.Time `json:"sanction_until,omitempty"`
+	SanctionReason     string    `json:"sanction_reason,omitempty"`
+	AcceptsStars       bool      `json:"accepts_stars"`
+	Operators          []string  `json:"operators,omitempty"`
+	FeedScore          float64   `json:"feed_score"`
+	CreatedAt          time.Time `json:"created_at"`
+	UpdatedAt          time.Time `json:"updated_at"`
 }
 
 // Product — цифровой товар.
 type Product struct {
-	ID            string    `json:"id"`
-	ShopID        string    `json:"shop_id"`
-	Title         string    `json:"title"`
-	Description   string    `json:"description"`
-	Kind          string    `json:"kind"` // key|file|account|subscription|service_code|custom
-	CategoryID    int64     `json:"category_id,omitempty"`
-	PriceLamports int64     `json:"price_sol"`
-	PriceStars    int64     `json:"price_stars"`
-	MediaURLs     []string  `json:"media_urls,omitempty"`
-	StockTotal    int       `json:"stock_total"`
-	StockFree     int       `json:"stock_free"`
-	WarrantyDays  int       `json:"warranty_days"`
-	DeliverySLAH  int       `json:"delivery_sla_h"`
-	Status        string    `json:"status"` // draft|moderation|published|rejected|archived
-	ModerationNote string   `json:"moderation_note,omitempty"`
-	RatingSum     int64     `json:"rating_sum"`
-	RatingCount   int       `json:"rating_count"`
-	CreatedAt     time.Time `json:"created_at"`
-	UpdatedAt     time.Time `json:"updated_at"`
+	ID             string    `json:"id"`
+	ShopID         string    `json:"shop_id"`
+	Title          string    `json:"title"`
+	Description    string    `json:"description"`
+	Kind           string    `json:"kind"` // key|file|account|subscription|service_code|custom
+	CategoryID     int64     `json:"category_id,omitempty"`
+	PriceLamports  int64     `json:"price_sol"`
+	PriceStars     int64     `json:"price_stars"`
+	MediaURLs      []string  `json:"media_urls,omitempty"`
+	StockTotal     int       `json:"stock_total"`
+	StockFree      int       `json:"stock_free"`
+	WarrantyDays   int       `json:"warranty_days"`
+	DeliverySLAH   int       `json:"delivery_sla_h"`
+	Status         string    `json:"status"` // draft|moderation|published|rejected|archived
+	ModerationNote string    `json:"moderation_note,omitempty"`
+	RatingSum      int64     `json:"rating_sum"`
+	RatingCount    int       `json:"rating_count"`
+	CreatedAt      time.Time `json:"created_at"`
+	UpdatedAt      time.Time `json:"updated_at"`
 }
 
 // StockItem — единица товара для автовыдачи (payload зашифрован).
@@ -364,7 +364,7 @@ type Chat struct {
 type Member struct {
 	ChatID      string    `json:"chat_id"`
 	UserID      string    `json:"user_id"`
-	Role        string    `json:"role"` // owner|admin|operator|member|arbiter|subscriber
+	Role        string    `json:"role"`                 // owner|admin|operator|member|arbiter|subscriber
 	VisibleAs   string    `json:"visible_as,omitempty"` // маскировка в спорах
 	JoinedAt    time.Time `json:"joined_at"`
 	LeftAt      time.Time `json:"left_at,omitempty"`
@@ -375,44 +375,44 @@ type Member struct {
 
 // Message — сообщение; тело всегда в ciphertext (FR-MSG-03).
 type Message struct {
-	ID              string    `json:"id"`
-	ChatID          string    `json:"chat_id"`
-	Seq             int64     `json:"seq"`
-	SenderID        string    `json:"sender_id"`
-	SenderVisibleAs string    `json:"sender_visible_as,omitempty"`
-	Type            string    `json:"type"` // text|attachment|product_card|order_card|gift_card|system
-	BodyCT          string    `json:"body_ct"`
-	BodySize        int       `json:"body_size"`
-	E2EE            bool      `json:"e2ee"`
-	SenderKeyID     string    `json:"sender_key_id,omitempty"`
-	ClientMsgID     string    `json:"client_msg_id,omitempty"`
-	ReplyTo         string    `json:"reply_to,omitempty"`
+	ID              string        `json:"id"`
+	ChatID          string        `json:"chat_id"`
+	Seq             int64         `json:"seq"`
+	SenderID        string        `json:"sender_id"`
+	SenderVisibleAs string        `json:"sender_visible_as,omitempty"`
+	Type            string        `json:"type"` // text|attachment|product_card|order_card|gift_card|system
+	BodyCT          string        `json:"body_ct"`
+	BodySize        int           `json:"body_size"`
+	E2EE            bool          `json:"e2ee"`
+	SenderKeyID     string        `json:"sender_key_id,omitempty"`
+	ClientMsgID     string        `json:"client_msg_id,omitempty"`
+	ReplyTo         string        `json:"reply_to,omitempty"`
 	System          SystemPayload `json:"system,omitempty"`
-	CreatedAt       time.Time `json:"created_at"`
-	EditedAt        time.Time `json:"edited_at,omitempty"`
-	DeletedAt       time.Time `json:"deleted_at,omitempty"`
+	CreatedAt       time.Time     `json:"created_at"`
+	EditedAt        time.Time     `json:"edited_at,omitempty"`
+	DeletedAt       time.Time     `json:"deleted_at,omitempty"`
 }
 
 // SystemPayload — данные системных сообщений (карточки заказов/подарков).
 type SystemPayload struct {
-	Kind     string         `json:"kind,omitempty"` // order_status|gift|dispute|rent|system
-	OrderID  string         `json:"order_id,omitempty"`
-	Status   string         `json:"status,omitempty"`
-	GiftID   string         `json:"gift_id,omitempty"`
-	Title    string         `json:"title,omitempty"`
-	Amount   string         `json:"amount,omitempty"`
-	Asset    string         `json:"asset,omitempty"`
-	Extra    map[string]any `json:"extra,omitempty"`
+	Kind    string         `json:"kind,omitempty"` // order_status|gift|dispute|rent|system
+	OrderID string         `json:"order_id,omitempty"`
+	Status  string         `json:"status,omitempty"`
+	GiftID  string         `json:"gift_id,omitempty"`
+	Title   string         `json:"title,omitempty"`
+	Amount  string         `json:"amount,omitempty"`
+	Asset   string         `json:"asset,omitempty"`
+	Extra   map[string]any `json:"extra,omitempty"`
 }
 
 // E2EEPrekey — публичная часть prekey-пакета устройства (FR-MSG-04).
 type E2EEPrekey struct {
-	UserID          string   `json:"user_id"`
-	DeviceID        string   `json:"device_id"`
-	IdentityPub     string   `json:"identity_pub"`
-	IdentitySig     string   `json:"identity_sig"`
-	SignedPrekeyPub string   `json:"signed_prekey_pub"`
-	SignedPrekeySig string   `json:"signed_prekey_sig"`
+	UserID          string    `json:"user_id"`
+	DeviceID        string    `json:"device_id"`
+	IdentityPub     string    `json:"identity_pub"`
+	IdentitySig     string    `json:"identity_sig"`
+	SignedPrekeyPub string    `json:"signed_prekey_pub"`
+	SignedPrekeySig string    `json:"signed_prekey_sig"`
 	OneTimeKeys     []OneTime `json:"one_time_keys"`
 	CreatedAt       time.Time `json:"created_at"`
 }
@@ -458,37 +458,37 @@ type DisputeEvent struct {
 
 // Dispute — спор по заказу (FR-DSP-*).
 type Dispute struct {
-	ID               string         `json:"id"`
-	OrderID          string         `json:"order_id"`
-	ShopID           string         `json:"shop_id"`
-	OpenedBy         string         `json:"opened_by"`
-	ReasonCode       string         `json:"reason_code"`
-	Description      string         `json:"description"`
-	Status           string         `json:"status"` // open|awaiting_reply|in_arbitration|resolved|dismissed|appeal|closed
-	BuyerID          string         `json:"buyer_id"`
-	SellerID         string         `json:"seller_id"`
-	BuyerAlias       string         `json:"buyer_alias"`
-	SellerAlias      string         `json:"seller_alias"`
-	ArbiterID        string         `json:"arbiter_id,omitempty"`
-	AssignedAt       time.Time      `json:"assigned_at,omitempty"`
-	ReplyDeadline    time.Time      `json:"reply_deadline"`
-	ResolveDeadline  time.Time      `json:"resolve_deadline,omitempty"`
-	Resolution       string         `json:"resolution,omitempty"`
-	ResolutionLamport int64         `json:"resolution_amount_sol,omitempty"`
-	ResolutionReason string         `json:"resolution_reason,omitempty"`
-	ResolvedAt       time.Time      `json:"resolved_at,omitempty"`
+	ID                string    `json:"id"`
+	OrderID           string    `json:"order_id"`
+	ShopID            string    `json:"shop_id"`
+	OpenedBy          string    `json:"opened_by"`
+	ReasonCode        string    `json:"reason_code"`
+	Description       string    `json:"description"`
+	Status            string    `json:"status"` // open|awaiting_reply|in_arbitration|resolved|dismissed|appeal|closed
+	BuyerID           string    `json:"buyer_id"`
+	SellerID          string    `json:"seller_id"`
+	BuyerAlias        string    `json:"buyer_alias"`
+	SellerAlias       string    `json:"seller_alias"`
+	ArbiterID         string    `json:"arbiter_id,omitempty"`
+	AssignedAt        time.Time `json:"assigned_at,omitempty"`
+	ReplyDeadline     time.Time `json:"reply_deadline"`
+	ResolveDeadline   time.Time `json:"resolve_deadline,omitempty"`
+	Resolution        string    `json:"resolution,omitempty"`
+	ResolutionLamport int64     `json:"resolution_amount_sol,omitempty"`
+	ResolutionReason  string    `json:"resolution_reason,omitempty"`
+	ResolvedAt        time.Time `json:"resolved_at,omitempty"`
 	// Апелляция (FR-DSP-08): одна на спор, окно 72 ч, старший арбитр.
-	AppealOf           string    `json:"appeal_of,omitempty"`
-	AppealedBy         string    `json:"appealed_by,omitempty"`
-	AppealedAt         time.Time `json:"appealed_at,omitempty"`
-	AppealReason       string    `json:"appeal_reason,omitempty"`
-	ExecutionSuspended bool      `json:"execution_suspended,omitempty"`
-	ChatID           string         `json:"chat_id,omitempty"`
-	Salt             string         `json:"-"`
-	Evidence         []*Evidence    `json:"evidence,omitempty"`
-	Timeline         []*DisputeEvent `json:"timeline,omitempty"`
-	CreatedAt        time.Time      `json:"created_at"`
-	UpdatedAt        time.Time      `json:"updated_at"`
+	AppealOf           string          `json:"appeal_of,omitempty"`
+	AppealedBy         string          `json:"appealed_by,omitempty"`
+	AppealedAt         time.Time       `json:"appealed_at,omitempty"`
+	AppealReason       string          `json:"appeal_reason,omitempty"`
+	ExecutionSuspended bool            `json:"execution_suspended,omitempty"`
+	ChatID             string          `json:"chat_id,omitempty"`
+	Salt               string          `json:"-"`
+	Evidence           []*Evidence     `json:"evidence,omitempty"`
+	Timeline           []*DisputeEvent `json:"timeline,omitempty"`
+	CreatedAt          time.Time       `json:"created_at"`
+	UpdatedAt          time.Time       `json:"updated_at"`
 }
 
 // Gift — цифровой подарок из каталога (FR-STR-03).
@@ -536,22 +536,22 @@ type GiftPurchase struct {
 
 // Review — отзыв (FR-REV-01: один на заказ).
 type Review struct {
-	ID                 string    `json:"id"`
-	OrderID            string    `json:"order_id"`
-	ShopID             string    `json:"shop_id"`
-	ProductID          string    `json:"product_id,omitempty"`
-	AuthorID           string    `json:"author_id"`
-	Rating             int       `json:"rating"`
-	RatingDelivery     int       `json:"rating_delivery,omitempty"`
-	RatingDescription  int       `json:"rating_description,omitempty"`
-	RatingSupport      int       `json:"rating_support,omitempty"`
-	Body               string    `json:"body,omitempty"`
-	Verified           bool      `json:"is_verified_purchase"`
-	ShopReply          string    `json:"shop_reply,omitempty"`
-	ShopReplyAt        time.Time `json:"shop_reply_at,omitempty"`
-	Status             string    `json:"status"` // published|hidden|removed|pending_moderation
-	Helpful            int       `json:"helpful_count"`
-	CreatedAt          time.Time `json:"created_at"`
+	ID                string    `json:"id"`
+	OrderID           string    `json:"order_id"`
+	ShopID            string    `json:"shop_id"`
+	ProductID         string    `json:"product_id,omitempty"`
+	AuthorID          string    `json:"author_id"`
+	Rating            int       `json:"rating"`
+	RatingDelivery    int       `json:"rating_delivery,omitempty"`
+	RatingDescription int       `json:"rating_description,omitempty"`
+	RatingSupport     int       `json:"rating_support,omitempty"`
+	Body              string    `json:"body,omitempty"`
+	Verified          bool      `json:"is_verified_purchase"`
+	ShopReply         string    `json:"shop_reply,omitempty"`
+	ShopReplyAt       time.Time `json:"shop_reply_at,omitempty"`
+	Status            string    `json:"status"` // published|hidden|removed|pending_moderation
+	Helpful           int       `json:"helpful_count"`
+	CreatedAt         time.Time `json:"created_at"`
 }
 
 // ReviewReport — жалоба на отзыв.
@@ -611,16 +611,16 @@ type Quote struct {
 
 // Notification — уведомление пользователя.
 type Notification struct {
-	ID        string            `json:"id"`
-	UserID    string            `json:"user_id"`
-	Channel   string            `json:"channel"` // inapp|tg_bot|email
-	Kind      string            `json:"kind"`
-	Title     string            `json:"title"`
-	Body      string            `json:"body,omitempty"`
-	DedupKey  string            `json:"dedup_key"`
-	Data      map[string]any    `json:"data,omitempty"`
-	Read      bool              `json:"read"`
-	CreatedAt time.Time         `json:"created_at"`
+	ID        string         `json:"id"`
+	UserID    string         `json:"user_id"`
+	Channel   string         `json:"channel"` // inapp|tg_bot|email
+	Kind      string         `json:"kind"`
+	Title     string         `json:"title"`
+	Body      string         `json:"body,omitempty"`
+	DedupKey  string         `json:"dedup_key"`
+	Data      map[string]any `json:"data,omitempty"`
+	Read      bool           `json:"read"`
+	CreatedAt time.Time      `json:"created_at"`
 }
 
 // AuthEvent — событие безопасности (FR-ABF-*, docs/security.md §7).
@@ -656,13 +656,13 @@ type AuditRecord struct {
 
 // Category — категория товаров.
 type Category struct {
-	ID           int64    `json:"id"`
-	Slug         string   `json:"slug"`
-	NameRU       string   `json:"name_ru"`
-	NameEN       string   `json:"name_en"`
-	Restricted   bool     `json:"restricted,omitempty"`
-	BlockedIn    []string `json:"blocked_in,omitempty"`
-	ParentID     int64    `json:"parent_id,omitempty"`
+	ID         int64    `json:"id"`
+	Slug       string   `json:"slug"`
+	NameRU     string   `json:"name_ru"`
+	NameEN     string   `json:"name_en"`
+	Restricted bool     `json:"restricted,omitempty"`
+	BlockedIn  []string `json:"blocked_in,omitempty"`
+	ParentID   int64    `json:"parent_id,omitempty"`
 }
 
 // ---------------------------------------------------------------------------
@@ -684,18 +684,18 @@ type Store struct {
 	Sessions    map[string]*Session
 	Refresh     map[string]*RefreshToken
 
-	RentPlans map[string]*RentPlan
-	Shops     map[string]*Shop
+	RentPlans   map[string]*RentPlan
+	Shops       map[string]*Shop
 	ShopsBySlug map[string]string
-	Subs      map[string]*RentSub // shop id -> sub
+	Subs        map[string]*RentSub // shop id -> sub
 
 	Products map[string]*Product
 	Stock    map[string][]*StockItem // product id -> items
 
-	Orders        map[string]*Order
+	Orders         map[string]*Order
 	OrdersByNumber map[string]string
-	OrderStatuses []*StatusEvent
-	Idempotency   map[string]string // key -> order/tx id
+	OrderStatuses  []*StatusEvent
+	Idempotency    map[string]string // key -> order/tx id
 
 	Chats     map[string]*Chat
 	Members   map[string][]*Member // chat id -> members
@@ -703,11 +703,11 @@ type Store struct {
 	Prekeys   map[string]*E2EEPrekey // userID+":"+deviceID
 	Sessions2 map[string]*E2EESession
 
-	Disputes map[string]*Dispute
-	Gifts    map[string]*Gift
+	Disputes  map[string]*Dispute
+	Gifts     map[string]*Gift
 	GiftPurch map[string]*GiftPurchase
-	Reviews  map[string]*Review
-	Reports  map[string]*ReviewReport
+	Reviews   map[string]*Review
+	Reports   map[string]*ReviewReport
 
 	Accounts map[string]*Account
 	Ledger   []*Entry
@@ -730,42 +730,42 @@ type Store struct {
 // New создаёт пустое хранилище.
 func New(dataDir string) *Store {
 	s := &Store{
-		Countries:     map[string]*Country{},
-		Cities:        map[int64]*City{},
-		Categories:    map[int64]*Category{},
-		Users:         map[string]*User{},
-		UsersByNick:   map[string]string{},
-		UsersByMail:   map[string]string{},
-		Enrollments:   map[string]*Enrollment{},
-		Sessions:      map[string]*Session{},
-		Refresh:       map[string]*RefreshToken{},
-		RentPlans:     map[string]*RentPlan{},
-		Shops:         map[string]*Shop{},
-		ShopsBySlug:   map[string]string{},
-		Subs:          map[string]*RentSub{},
-		Products:      map[string]*Product{},
-		Stock:         map[string][]*StockItem{},
-		Orders:        map[string]*Order{},
+		Countries:      map[string]*Country{},
+		Cities:         map[int64]*City{},
+		Categories:     map[int64]*Category{},
+		Users:          map[string]*User{},
+		UsersByNick:    map[string]string{},
+		UsersByMail:    map[string]string{},
+		Enrollments:    map[string]*Enrollment{},
+		Sessions:       map[string]*Session{},
+		Refresh:        map[string]*RefreshToken{},
+		RentPlans:      map[string]*RentPlan{},
+		Shops:          map[string]*Shop{},
+		ShopsBySlug:    map[string]string{},
+		Subs:           map[string]*RentSub{},
+		Products:       map[string]*Product{},
+		Stock:          map[string][]*StockItem{},
+		Orders:         map[string]*Order{},
 		OrdersByNumber: map[string]string{},
-		Idempotency:   map[string]string{},
-		Chats:         map[string]*Chat{},
-		Members:       map[string][]*Member{},
-		Messages:      map[string][]*Message{},
-		Prekeys:       map[string]*E2EEPrekey{},
-		Sessions2:     map[string]*E2EESession{},
-		Disputes:      map[string]*Dispute{},
-		Gifts:         map[string]*Gift{},
-		GiftPurch:     map[string]*GiftPurchase{},
-		Reviews:       map[string]*Review{},
-		Reports:       map[string]*ReviewReport{},
-		Accounts:      map[string]*Account{},
-		TxSeen:        map[string]bool{},
-		Withdrawals:   map[string]*Withdrawal{},
-		SolTxs:        map[string]*SolTx{},
-		Quotes:        map[string]*Quote{},
-		Notifications: map[string][]*Notification{},
-		Settings:      map[string]any{},
-		dataDir:       dataDir,
+		Idempotency:    map[string]string{},
+		Chats:          map[string]*Chat{},
+		Members:        map[string][]*Member{},
+		Messages:       map[string][]*Message{},
+		Prekeys:        map[string]*E2EEPrekey{},
+		Sessions2:      map[string]*E2EESession{},
+		Disputes:       map[string]*Dispute{},
+		Gifts:          map[string]*Gift{},
+		GiftPurch:      map[string]*GiftPurchase{},
+		Reviews:        map[string]*Review{},
+		Reports:        map[string]*ReviewReport{},
+		Accounts:       map[string]*Account{},
+		TxSeen:         map[string]bool{},
+		Withdrawals:    map[string]*Withdrawal{},
+		SolTxs:         map[string]*SolTx{},
+		Quotes:         map[string]*Quote{},
+		Notifications:  map[string][]*Notification{},
+		Settings:       map[string]any{},
+		dataDir:        dataDir,
 	}
 	return s
 }
@@ -849,39 +849,39 @@ func (s *Store) SettingBool(key string, def bool) bool {
 // ---------------------------------------------------------------------------
 
 type snapshot struct {
-	Version      int                       `json:"version"`
-	SavedAt      time.Time                 `json:"saved_at"`
-	Countries    map[string]*Country       `json:"countries"`
-	Cities       map[int64]*City           `json:"cities"`
-	Categories   map[int64]*Category       `json:"categories"`
-	Users        map[string]*User          `json:"users"`
-	UsersByNick  map[string]string         `json:"users_by_nick"`
-	UsersByMail  map[string]string         `json:"users_by_mail"`
-	UserSeq      uint64                    `json:"user_seq"`
-	RentPlans    map[string]*RentPlan      `json:"rent_plans"`
-	Shops        map[string]*Shop          `json:"shops"`
-	ShopsBySlug  map[string]string         `json:"shops_by_slug"`
-	Subs         map[string]*RentSub       `json:"subs"`
-	Products     map[string]*Product       `json:"products"`
-	Stock        map[string][]*StockItem   `json:"stock"`
-	Orders       map[string]*Order         `json:"orders"`
-	OrdersByNumber map[string]string       `json:"orders_by_number"`
-	OrderStatuses []*StatusEvent           `json:"order_statuses"`
-	Chats        map[string]*Chat          `json:"chats"`
-	Members      map[string][]*Member      `json:"members"`
-	Messages     map[string][]*Message     `json:"messages"`
-	Disputes     map[string]*Dispute       `json:"disputes"`
-	Gifts        map[string]*Gift          `json:"gifts"`
-	GiftPurch    map[string]*GiftPurchase  `json:"gift_purchases"`
-	Reviews      map[string]*Review        `json:"reviews"`
-	Accounts     map[string]*Account       `json:"accounts"`
-	Ledger       []*Entry                  `json:"ledger"`
-	Withdrawals  map[string]*Withdrawal    `json:"withdrawals"`
-	SolTxs       map[string]*SolTx         `json:"sol_txs"`
-	Notifications map[string][]*Notification `json:"notifications"`
-	Audit        []*AuditRecord            `json:"audit"`
-	AuditHead    string                    `json:"audit_head"`
-	Settings     map[string]any            `json:"settings"`
+	Version        int                        `json:"version"`
+	SavedAt        time.Time                  `json:"saved_at"`
+	Countries      map[string]*Country        `json:"countries"`
+	Cities         map[int64]*City            `json:"cities"`
+	Categories     map[int64]*Category        `json:"categories"`
+	Users          map[string]*User           `json:"users"`
+	UsersByNick    map[string]string          `json:"users_by_nick"`
+	UsersByMail    map[string]string          `json:"users_by_mail"`
+	UserSeq        uint64                     `json:"user_seq"`
+	RentPlans      map[string]*RentPlan       `json:"rent_plans"`
+	Shops          map[string]*Shop           `json:"shops"`
+	ShopsBySlug    map[string]string          `json:"shops_by_slug"`
+	Subs           map[string]*RentSub        `json:"subs"`
+	Products       map[string]*Product        `json:"products"`
+	Stock          map[string][]*StockItem    `json:"stock"`
+	Orders         map[string]*Order          `json:"orders"`
+	OrdersByNumber map[string]string          `json:"orders_by_number"`
+	OrderStatuses  []*StatusEvent             `json:"order_statuses"`
+	Chats          map[string]*Chat           `json:"chats"`
+	Members        map[string][]*Member       `json:"members"`
+	Messages       map[string][]*Message      `json:"messages"`
+	Disputes       map[string]*Dispute        `json:"disputes"`
+	Gifts          map[string]*Gift           `json:"gifts"`
+	GiftPurch      map[string]*GiftPurchase   `json:"gift_purchases"`
+	Reviews        map[string]*Review         `json:"reviews"`
+	Accounts       map[string]*Account        `json:"accounts"`
+	Ledger         []*Entry                   `json:"ledger"`
+	Withdrawals    map[string]*Withdrawal     `json:"withdrawals"`
+	SolTxs         map[string]*SolTx          `json:"sol_txs"`
+	Notifications  map[string][]*Notification `json:"notifications"`
+	Audit          []*AuditRecord             `json:"audit"`
+	AuditHead      string                     `json:"audit_head"`
+	Settings       map[string]any             `json:"settings"`
 }
 
 // SaveSnapshot сохраняет состояние в JSON-файл (если задан dataDir).
