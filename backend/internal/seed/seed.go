@@ -22,33 +22,33 @@ import (
 
 // UserCredentials — данные входа демонстрационного пользователя.
 type UserCredentials struct {
-	UserID         string   `json:"user_id"`
-	Role           string   `json:"role"`
-	Nickname       string   `json:"nickname"`
-	Email          string   `json:"email"`
-	Password       string   `json:"password"`
-	LoginSecret    string   `json:"login_secret_b32"`
-	OpsSecret      string   `json:"ops_secret_b32"`
-	LoginOTPURL    string   `json:"login_otpauth_url"`
-	OpsOTPURL      string   `json:"ops_otpauth_url"`
-	LoginBackup    []string `json:"login_backup_codes"`
-	OpsBackup      []string `json:"ops_backup_codes"`
-	BalanceSOL     string   `json:"balance_sol"`
-	BalanceStars   int64    `json:"balance_stars"`
-	Country        string   `json:"country"`
-	ShopIDs        []string `json:"shop_ids,omitempty"`
+	UserID       string   `json:"user_id"`
+	Role         string   `json:"role"`
+	Nickname     string   `json:"nickname"`
+	Email        string   `json:"email"`
+	Password     string   `json:"password"`
+	LoginSecret  string   `json:"login_secret_b32"`
+	OpsSecret    string   `json:"ops_secret_b32"`
+	LoginOTPURL  string   `json:"login_otpauth_url"`
+	OpsOTPURL    string   `json:"ops_otpauth_url"`
+	LoginBackup  []string `json:"login_backup_codes"`
+	OpsBackup    []string `json:"ops_backup_codes"`
+	BalanceSOL   string   `json:"balance_sol"`
+	BalanceStars int64    `json:"balance_stars"`
+	Country      string   `json:"country"`
+	ShopIDs      []string `json:"shop_ids,omitempty"`
 }
 
 // Result — итог наполнения.
 type Result struct {
-	Users       []UserCredentials `json:"users"`
-	ShopIDs     []string          `json:"shop_ids"`
-	ProductIDs  []string          `json:"product_ids"`
-	OrderIDs    []string          `json:"order_ids"`
-	DisputeIDs  []string          `json:"dispute_ids"`
-	GiftIDs     []string          `json:"gift_ids"`
-	ChatIDs     []string          `json:"chat_ids"`
-	Counters    map[string]int    `json:"counters"`
+	Users      []UserCredentials `json:"users"`
+	ShopIDs    []string          `json:"shop_ids"`
+	ProductIDs []string          `json:"product_ids"`
+	OrderIDs   []string          `json:"order_ids"`
+	DisputeIDs []string          `json:"dispute_ids"`
+	GiftIDs    []string          `json:"gift_ids"`
+	ChatIDs    []string          `json:"chat_ids"`
+	Counters   map[string]int    `json:"counters"`
 }
 
 // demoSpec — описание пользователя в демо-наборе.
@@ -93,37 +93,37 @@ var demoShopsSpec = []shopSpec{
 	{
 		slug: "key-master", name: "КлючМастер",
 		description: "Лицензионные ключи Windows, Office, антивирусов и VPN. Мгновенная выдача, гарантия замены 30 дней.",
-		adminNick: "keymaster", categoryIDs: []int64{1, 3, 12}, country: "RU", cityID: 1002,
+		adminNick:   "keymaster", categoryIDs: []int64{1, 3, 12}, country: "RU", cityID: 1002,
 		planCode: "crown", rentStatus: store.RentActive, rentDays: 24, verified: true, acceptStars: true,
 	},
 	{
 		slug: "cifra-nord", name: "Цифра Норд",
 		description: "Подписки на стриминги, музыку и облачные сервисы. Официальные регионы, продление от 1 месяца.",
-		adminNick: "lena_digital", categoryIDs: []int64{4, 8, 3}, country: "RU", cityID: 1001,
+		adminNick:   "lena_digital", categoryIDs: []int64{4, 8, 3}, country: "RU", cityID: 1001,
 		planCode: "pro", rentStatus: store.RentActive, rentDays: 18, verified: true, acceptStars: true,
 	},
 	{
 		slug: "almaty-keys", name: "Almaty Keys",
 		description: "Игровые аккаунты и цифровые подарки Steam/Epic. Быстрая поддержка на русском и казахском.",
-		adminNick: "viktor_keys", categoryIDs: []int64{5, 2, 1}, country: "KZ", cityID: 3001,
+		adminNick:   "viktor_keys", categoryIDs: []int64{5, 2, 1}, country: "KZ", cityID: 3001,
 		planCode: "starter", rentStatus: store.RentTrial, rentDays: 4, acceptStars: true,
 	},
 	{
 		slug: "game-vault", name: "GameVault",
 		description: "Ключи активации игр, внутриигровая валюта, сезонные пропуска. Автовыдача 24/7.",
-		adminNick: "keymaster", categoryIDs: []int64{5, 1, 10}, country: "RU", cityID: 1002,
+		adminNick:   "keymaster", categoryIDs: []int64{5, 1, 10}, country: "RU", cityID: 1002,
 		planCode: "pro", rentStatus: store.RentExpiring, rentDays: 5, acceptStars: true,
 	},
 	{
 		slug: "soft-license", name: "SoftLicense",
 		description: "Профессиональное ПО для дизайна, 3D и разработки. Корпоративные лицензии.",
-		adminNick: "lena_digital", categoryIDs: []int64{3, 7, 6}, country: "RU", cityID: 1001,
+		adminNick:   "lena_digital", categoryIDs: []int64{3, 7, 6}, country: "RU", cityID: 1001,
 		planCode: "starter", rentStatus: store.RentSuspended, rentDays: -3, acceptStars: false,
 	},
 	{
 		slug: "proxy-nord", name: "ProxyNord",
 		description: "Персональные прокси и VPN-подписки для работы и путешествий. Замена узла в течение часа.",
-		adminNick: "viktor_keys", categoryIDs: []int64{12, 4, 10}, country: "KZ", cityID: 3002,
+		adminNick:   "viktor_keys", categoryIDs: []int64{12, 4, 10}, country: "KZ", cityID: 3002,
 		planCode: "crown", rentStatus: store.RentActive, rentDays: 30, verified: true, acceptStars: true,
 	},
 }
@@ -146,7 +146,7 @@ var demoProductsSpec = []productSpec{
 	{
 		shopSlug: "key-master", title: "Windows 11 Pro — цифровой ключ",
 		description: "Оригинальный ключ активации Windows 11 Pro. Привязка к учётной записи Microsoft, пожизненная лицензия.",
-		kind: "key", categoryID: 1, priceSOL: 1.2, priceStars: 120, warranty: 30, slaHours: 1,
+		kind:        "key", categoryID: 1, priceSOL: 1.2, priceStars: 120, warranty: 30, slaHours: 1,
 		stock: []string{
 			"SITEE-W11P-7QK2-M9XD-4RTV-88HN", "SITEE-W11P-3LMQ-77ZC-P2KD-10YX",
 			"SITEE-W11P-9WBN-44HT-Q8LM-27ZD",
@@ -155,7 +155,7 @@ var demoProductsSpec = []productSpec{
 	{
 		shopSlug: "key-master", title: "Office 2024 Home & Business",
 		description: "Лицензия Office 2024 (Word, Excel, PowerPoint, Outlook) на 1 ПК, активация через аккаунт Microsoft.",
-		kind: "key", categoryID: 3, priceSOL: 2.4, priceStars: 240, warranty: 30, slaHours: 1,
+		kind:        "key", categoryID: 3, priceSOL: 2.4, priceStars: 240, warranty: 30, slaHours: 1,
 		stock: []string{
 			"SITEE-OFF24-HB-2210-KL87-MN34-QW12", "SITEE-OFF24-HB-7781-ZX90-PQ23-LM65",
 		},
@@ -163,7 +163,7 @@ var demoProductsSpec = []productSpec{
 	{
 		shopSlug: "key-master", title: "Антивирус Total Security, 1 год / 3 устройства",
 		description: "Годовая подписка на комплексную защиту: антивирус, файрвол, антифишинг, защита платежей.",
-		kind: "subscription", categoryID: 3, priceSOL: 0.9, priceStars: 90, warranty: 60, slaHours: 2,
+		kind:        "subscription", categoryID: 3, priceSOL: 0.9, priceStars: 90, warranty: 60, slaHours: 2,
 		stock: []string{
 			"Промокод активации: AV-TS-2026-8842-KLMQ\nСрок: 12 месяцев, 3 устройства\nАктивация: на сайте вендора → «Ввести код»",
 			"Промокод активации: AV-TS-2026-1190-ZXCV\nСрок: 12 месяцев, 3 устройства",
@@ -173,7 +173,7 @@ var demoProductsSpec = []productSpec{
 	{
 		shopSlug: "cifra-nord", title: "Подписка на музыкальный стриминг, 3 месяца",
 		description: "Премиум-доступ к музыкальному сервису: без рекламы, офлайн-режим, высокое качество звука.",
-		kind: "subscription", categoryID: 8, priceSOL: 1.5, priceStars: 150, warranty: 14, slaHours: 3,
+		kind:        "subscription", categoryID: 8, priceSOL: 1.5, priceStars: 150, warranty: 14, slaHours: 3,
 		stock: []string{
 			"Логин: music.nova.77@mail.dev\nПароль: Tr#9mKq2Lz\nРегион: EU\nПродление: до 2026-12-31",
 			"Логин: music.beat.14@mail.dev\nПароль: Qw!8XcV3pL\nРегион: EU",
@@ -182,7 +182,7 @@ var demoProductsSpec = []productSpec{
 	{
 		shopSlug: "cifra-nord", title: "Облачное хранилище 2 ТБ, 12 месяцев",
 		description: "Годовая подписка на облако: 2 ТБ, совместная работа, версионирование файлов.",
-		kind: "subscription", categoryID: 3, priceSOL: 3.2, priceStars: 320, warranty: 30, slaHours: 6,
+		kind:        "subscription", categoryID: 3, priceSOL: 3.2, priceStars: 320, warranty: 30, slaHours: 6,
 		stock: []string{
 			"Код активации: CLD-2TB-9921-MKQA-7712\nИнструкция: активировать в личном кабинете → «Подписки»",
 			"Код активации: CLD-2TB-3390-ZXPL-1188",
@@ -191,7 +191,7 @@ var demoProductsSpec = []productSpec{
 	{
 		shopSlug: "cifra-nord", title: "Курс «Цифровой маркетинг 2026»",
 		description: "Доступ к 42 урокам, шаблонам и чату курса. Пожизненный доступ после активации.",
-		kind: "file", categoryID: 6, priceSOL: 4.5, priceStars: 450, warranty: 7, slaHours: 12,
+		kind:        "file", categoryID: 6, priceSOL: 4.5, priceStars: 450, warranty: 7, slaHours: 12,
 		stock: []string{
 			"Ссылка на архив: https://cdn.sitee.dev/dl/mkt-2026-part1.zip\nПароль архива: 8Hd2-LmQ9-Xz41\nДоступ к чату: https://t.me/sitee_course_bot?start=mkt2026",
 		},
@@ -199,7 +199,7 @@ var demoProductsSpec = []productSpec{
 	{
 		shopSlug: "almaty-keys", title: "Аккаунт игрового сервиса (уровень 30+)",
 		description: "Прокачанный аккаунт с библиотекой из 12 игр, полная смена почты и пароля на ваши.",
-		kind: "account", categoryID: 2, priceSOL: 2.8, priceStars: 280, warranty: 14, slaHours: 4,
+		kind:        "account", categoryID: 2, priceSOL: 2.8, priceStars: 280, warranty: 14, slaHours: 4,
 		stock: []string{
 			"Логин: gamer.almaty.07\nПароль: Kz#72mQp9L\nРезервная почта: reserve.07@mail.dev / Pass!8821\nУровень: 34, игр: 12",
 			"Логин: gamer.almaty.19\nПароль: Rt%41xNq7B\nРезервная почта: reserve.19@mail.dev / Pass!3390\nУровень: 31, игр: 14",
@@ -208,7 +208,7 @@ var demoProductsSpec = []productSpec{
 	{
 		shopSlug: "almaty-keys", title: "Пополнение игрового кошелька 1000 монет",
 		description: "Зачисление 1000 внутриигровых монет на ваш аккаунт. Нужен только ID профиля.",
-		kind: "service_code", categoryID: 5, priceSOL: 0.6, priceStars: 60, warranty: 3, slaHours: 2,
+		kind:        "service_code", categoryID: 5, priceSOL: 0.6, priceStars: 60, warranty: 3, slaHours: 2,
 		stock: []string{
 			"Код услуги: SVC-1000-7731-XX\nАктивация: в игре → Магазин → «Пополнить по коду»",
 			"Код услуги: SVC-1000-2290-QM\nАктивация: в игре → Магазин → «Пополнить по коду»",
@@ -218,7 +218,7 @@ var demoProductsSpec = []productSpec{
 	{
 		shopSlug: "game-vault", title: "Ключ активации RPG-новинки (PC)",
 		description: "Цифровой ключ PC-версии, активация в лаунчере, региональных ограничений нет.",
-		kind: "key", categoryID: 5, priceSOL: 5.5, priceStars: 550, warranty: 30, slaHours: 1,
+		kind:        "key", categoryID: 5, priceSOL: 5.5, priceStars: 550, warranty: 30, slaHours: 1,
 		stock: []string{
 			"RPG26-PC-A71M-99QX-2KL0-77HD", "RPG26-PC-B22N-10LM-88PQ-33ZK",
 		},
@@ -226,7 +226,7 @@ var demoProductsSpec = []productSpec{
 	{
 		shopSlug: "game-vault", title: "Сезонный пропуск, 3 месяц",
 		description: "Пропуск на сезон: эксклюзивные награды, ускоренная прокачка, бонусные задания.",
-		kind: "subscription", categoryID: 5, priceSOL: 1.1, priceStars: 110, warranty: 7, slaHours: 2,
+		kind:        "subscription", categoryID: 5, priceSOL: 1.1, priceStars: 110, warranty: 7, slaHours: 2,
 		stock: []string{
 			"PASS-S3-9912-MKQA-7781", "PASS-S3-3390-ZXPL-1122", "PASS-S3-5581-QWRT-9903",
 		},
@@ -234,7 +234,7 @@ var demoProductsSpec = []productSpec{
 	{
 		shopSlug: "soft-license", title: "Профессиональный графический пакет, 1 год",
 		description: "Годовая лицензия на профессиональный графический редактор: коммерческое использование разрешено.",
-		kind: "subscription", categoryID: 7, priceSOL: 8.9, priceStars: 890, warranty: 30, slaHours: 24,
+		kind:        "subscription", categoryID: 7, priceSOL: 8.9, priceStars: 890, warranty: 30, slaHours: 24,
 		stock: []string{
 			"Лицензия: GFX-PRO-2026-88121-KLMQ9\nАктивация: Help → Enter License\nПоддержка вендора: 12 месяцев",
 		},
@@ -242,7 +242,7 @@ var demoProductsSpec = []productSpec{
 	{
 		shopSlug: "proxy-nord", title: "Персональный прокси, 1 месяц (10 локаций)",
 		description: "Выделенный прокси с 10 локациями, безлимитный трафик, замена узла по запросу.",
-		kind: "custom", categoryID: 12, priceSOL: 1.8, priceStars: 180, warranty: 30, slaHours: 2,
+		kind:        "custom", categoryID: 12, priceSOL: 1.8, priceStars: 180, warranty: 30, slaHours: 2,
 		stock: []string{
 			"Логин: sitee_proxy_8842\nПароль: Px#9921mK\nСерверы: NL, DE, SE, NO, FI, PL, TR, US, GB, JP\nФормат: host:port:user:pass",
 			"Логин: sitee_proxy_1190\nПароль: Qz!7712pL\nСерверы: NL, DE, SE, NO, FI, PL, TR, US, GB, JP",
@@ -251,7 +251,7 @@ var demoProductsSpec = []productSpec{
 	{
 		shopSlug: "proxy-nord", title: "VPN-подписка Premium, 6 месяцев",
 		description: "6 месяцев VPN: 60+ стран, WireGuard, kill switch, 5 устройств одновременно.",
-		kind: "subscription", categoryID: 12, priceSOL: 2.2, priceStars: 220, warranty: 30, slaHours: 1,
+		kind:        "subscription", categoryID: 12, priceSOL: 2.2, priceStars: 220, warranty: 30, slaHours: 1,
 		stock: []string{
 			"VPN-PREM-6M-7712-KLMQ-9981\nАктивация: приложение → «Ввести код»",
 			"VPN-PREM-6M-3390-ZXPL-1102",
@@ -260,7 +260,7 @@ var demoProductsSpec = []productSpec{
 	{
 		shopSlug: "key-master", title: "Готовый аккаунт стриминга (EU, премиум)",
 		description: "Аккаунт стримингового сервиса с премиум-подпиской до конца года, регион EU.",
-		kind: "account", categoryID: 2, priceSOL: 3.4, priceStars: 340, warranty: 14, slaHours: 3,
+		kind:        "account", categoryID: 2, priceSOL: 3.4, priceStars: 340, warranty: 14, slaHours: 3,
 		stock: []string{
 			"Логин: stream.eu.44@mail.dev\nПароль: Nm!2287Qx\nПодписка: Premium до 2026-12-31\nРегион: EU",
 		},
@@ -311,24 +311,24 @@ type reviewSpec struct {
 
 var demoReviewsSpec = []reviewSpec{
 	{shopSlug: "key-master", author: "buyer_nova", rating: 5, delivery: 5, desc: 5, support: 5,
-		body: "Ключ пришёл через минуту после оплаты, активировался без проблем. Продавец ответил в чате за 10 минут.",
+		body:  "Ключ пришёл через минуту после оплаты, активировался без проблем. Продавец ответил в чате за 10 минут.",
 		reply: "Спасибо за отзыв! Обращайтесь — продлим и настроим.", daysAgo: 4, helpful: 12},
 	{shopSlug: "key-master", author: "buyer_max", rating: 5, delivery: 5, desc: 5, support: 4,
 		body: "Второй заказ, всё чётко. Автовыдача работает ночью — это главное.", daysAgo: 9, helpful: 7},
 	{shopSlug: "key-master", author: "buyer_nova", rating: 4, delivery: 4, desc: 5, support: 4,
 		body: "Office встал с первой попытки, но ответа в чате ждал около часа.", daysAgo: 16, helpful: 3},
 	{shopSlug: "cifra-nord", author: "buyer_max", rating: 5, delivery: 5, desc: 4, support: 5,
-		body: "Подписка на музыку работает, регион EU как и обещали. Помогли с входом.",
+		body:  "Подписка на музыку работает, регион EU как и обещали. Помогли с входом.",
 		reply: "Рады помочь! Если смените устройство — пишите.", daysAgo: 3, helpful: 9},
 	{shopSlug: "cifra-nord", author: "buyer_nova", rating: 4, delivery: 4, desc: 4, support: 5,
 		body: "Облако 2 ТБ активировалось, инструкция понятная. Хотелось бы быстрее выдачу.", daysAgo: 11, helpful: 2},
 	{shopSlug: "almaty-keys", author: "buyer_nova", rating: 5, delivery: 5, desc: 5, support: 5,
-		body: "Аккаунт передали с полной сменой почты, всё по инструкции. Поддержка на русском.",
+		body:    "Аккаунт передали с полной сменой почты, всё по инструкции. Поддержка на русском.",
 		daysAgo: 2, helpful: 5},
 	{shopSlug: "game-vault", author: "buyer_max", rating: 4, delivery: 5, desc: 4, support: 4,
 		body: "Ключ игры пришёл мгновенно, активировался. Минус балл за скудное описание региона.", daysAgo: 6, helpful: 4},
 	{shopSlug: "proxy-nord", author: "buyer_nova", rating: 5, delivery: 5, desc: 5, support: 5,
-		body: "Прокси работают стабильно, локаций реально 10. Узел заменили за 40 минут по запросу.",
+		body:  "Прокси работают стабильно, локаций реально 10. Узел заменили за 40 минут по запросу.",
 		reply: "Спасибо! Держим SLA.", daysAgo: 5, helpful: 11},
 	{shopSlug: "proxy-nord", author: "buyer_max", rating: 3, delivery: 3, desc: 4, support: 3,
 		body: "VPN неплохой, но выдача заняла почти сутки вместо обещанных часов.", daysAgo: 13, helpful: 1},
@@ -653,7 +653,7 @@ func buildUsers(cr *cryptod.Core, now time.Time) (map[string]*store.User, []User
 			Country: spec.country, CityID: spec.cityID, Locale: "ru", Theme: "dark",
 			Status: store.UserActive, Factors: map[string]*store.Factor{},
 			Seq: uint64(i + 1), Is18Plus: true,
-			CreatedAt: now.Add(-time.Duration(40+i*3) * 24 * time.Hour),
+			CreatedAt:   now.Add(-time.Duration(40+i*3) * 24 * time.Hour),
 			LastLoginAt: now.Add(-time.Duration(i) * time.Hour),
 		}
 		// Депозитный адрес (SLIP-0010, docs/solana.md §3.1).
@@ -1062,18 +1062,18 @@ func supportAnswer(i int) string {
 // ---------------------------------------------------------------------------
 
 type orderSpec struct {
-	number      string
-	buyerNick   string
-	shopSlug    string
-	productIdx  int // индекс товара этого магазина в demoProductsSpec
-	qty         int
-	status      string
-	asset       string
-	minutesAgo  int
-	delivered   bool
-	completed   bool
-	dispute     bool
-	disputeBy   string
+	number     string
+	buyerNick  string
+	shopSlug   string
+	productIdx int // индекс товара этого магазина в demoProductsSpec
+	qty        int
+	status     string
+	asset      string
+	minutesAgo int
+	delivered  bool
+	completed  bool
+	dispute    bool
+	disputeBy  string
 }
 
 var demoOrdersSpec = []orderSpec{
@@ -1261,11 +1261,11 @@ func buildOrders(cr *cryptod.Core, users map[string]*store.User, shops []*store.
 				ID: ids.New("dsp"), OrderID: o.ID, ShopID: sh.ID, OpenedBy: opener.ID,
 				ReasonCode: "invalid_key", Status: store.DisputeOpen,
 				Description: "Ключ из заказа не активируется: сервис сообщает, что код уже использован. Прошу замену или возврат.",
-				BuyerID: o.BuyerID, SellerID: sh.AdminUserID,
-				BuyerAlias:  aliasFor(salt, o.BuyerID, "buyer"),
-				SellerAlias: aliasFor(salt, sh.AdminUserID, "shop"),
+				BuyerID:     o.BuyerID, SellerID: sh.AdminUserID,
+				BuyerAlias:    aliasFor(salt, o.BuyerID, "buyer"),
+				SellerAlias:   aliasFor(salt, sh.AdminUserID, "shop"),
 				ReplyDeadline: now.Add(time.Duration(cfg.DisputeReplyHours) * time.Hour),
-				Salt: salt, CreatedAt: now.Add(-2 * time.Hour), UpdatedAt: now.Add(-2 * time.Hour),
+				Salt:          salt, CreatedAt: now.Add(-2 * time.Hour), UpdatedAt: now.Add(-2 * time.Hour),
 			}
 			d.Timeline = append(d.Timeline, &store.DisputeEvent{
 				TS: d.CreatedAt, Kind: "opened", ActorID: opener.ID,
@@ -1308,7 +1308,7 @@ func buildOrders(cr *cryptod.Core, users map[string]*store.User, shops []*store.
 			ev := &store.Evidence{
 				ID: ids.New("evd"), Kind: "image", UploaderID: o.BuyerID,
 				SHA256: "seed00000000000000000000000000000000000000000000000000000000000000",
-				Size: 20480, Name: "activation_error.png", MetaStripped: true,
+				Size:   20480, Name: "activation_error.png", MetaStripped: true,
 				CreatedAt: d.CreatedAt.Add(6 * time.Minute),
 			}
 			ev.DataCT = mustEncrypt(cr, store.DomainDispute, ev.ID, "seed:demo-evidence-placeholder")

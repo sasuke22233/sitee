@@ -32,21 +32,21 @@ const (
 
 // Виды проводок.
 const (
-	KindDeposit       = "deposit"
-	KindDepositRevert = "deposit_revert"
-	KindWithdraw      = "withdraw"
-	KindWithdrawHold  = "withdraw_hold"
+	KindDeposit        = "deposit"
+	KindDepositRevert  = "deposit_revert"
+	KindWithdraw       = "withdraw"
+	KindWithdrawHold   = "withdraw_hold"
 	KindWithdrawUnhold = "withdraw_unhold"
-	KindOrderHold     = "order_hold"
-	KindOrderRelease  = "order_release"
-	KindRefund        = "refund"
-	KindRent          = "rent"
-	KindRentRefund    = "rent_refund"
-	KindGift          = "gift"
-	KindExchange      = "exchange"
-	KindFee           = "fee"
-	KindReward        = "reward"
-	KindSeed          = "seed"
+	KindOrderHold      = "order_hold"
+	KindOrderRelease   = "order_release"
+	KindRefund         = "refund"
+	KindRent           = "rent"
+	KindRentRefund     = "rent_refund"
+	KindGift           = "gift"
+	KindExchange       = "exchange"
+	KindFee            = "fee"
+	KindReward         = "reward"
+	KindSeed           = "seed"
 )
 
 // Account — счёт ledger.
@@ -64,18 +64,18 @@ type Account struct {
 
 // Entry — проводка (одна строка двойной записи).
 type Entry struct {
-	ID            string    `json:"id"`
-	TxID          string    `json:"tx_id"`
-	IdempotencyKey string   `json:"idempotency_key"`
-	TS            time.Time `json:"ts"`
-	AccountID     string    `json:"account_id"`
-	Direction     string    `json:"direction"` // debit|credit
-	Amount        int64     `json:"amount"`
-	Asset         string    `json:"asset"`
-	Kind          string    `json:"kind"`
-	RefType       string    `json:"ref_type,omitempty"`
-	RefID         string    `json:"ref_id,omitempty"`
-	ActorID       string    `json:"actor_id,omitempty"`
+	ID             string    `json:"id"`
+	TxID           string    `json:"tx_id"`
+	IdempotencyKey string    `json:"idempotency_key"`
+	TS             time.Time `json:"ts"`
+	AccountID      string    `json:"account_id"`
+	Direction      string    `json:"direction"` // debit|credit
+	Amount         int64     `json:"amount"`
+	Asset          string    `json:"asset"`
+	Kind           string    `json:"kind"`
+	RefType        string    `json:"ref_type,omitempty"`
+	RefID          string    `json:"ref_id,omitempty"`
+	ActorID        string    `json:"actor_id,omitempty"`
 }
 
 // Ошибки ledger.
