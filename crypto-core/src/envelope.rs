@@ -161,7 +161,7 @@ mod tests {
             // итерации, где domain == "wallet" (это не чужой домен).
             let other = DOMAINS
                 .iter()
-                .find(|d| **d != *domain)
+                .find(|d| **d != domain)
                 .copied()
                 .expect("доменов больше одного");
             assert!(core.try_decrypt(other, "obj_1", &blob).is_none());
