@@ -34,50 +34,50 @@ const (
 
 // Коды закрытия (docs/api.md §10.3).
 const (
-	CloseNormal         = 1000
-	CloseGoingAway      = 1001
-	CloseProtocolError  = 1002
-	CloseUnsupported    = 1003
-	CloseNoStatus       = 1005
-	CloseAbnormal       = 1006
-	CloseInvalidData    = 1007
-	ClosePolicy         = 1008
-	CloseTooBig         = 1009
-	CloseMandatoryExt   = 1010
-	CloseInternalError  = 1011
+	CloseNormal          = 1000
+	CloseGoingAway       = 1001
+	CloseProtocolError   = 1002
+	CloseUnsupported     = 1003
+	CloseNoStatus        = 1005
+	CloseAbnormal        = 1006
+	CloseInvalidData     = 1007
+	ClosePolicy          = 1008
+	CloseTooBig          = 1009
+	CloseMandatoryExt    = 1010
+	CloseInternalError   = 1011
 	CloseUnauthenticated = 4401
-	CloseForbidden      = 4403
-	CloseHeartbeat      = 4408
-	CloseRateLimited    = 4429
-	CloseOverloaded     = 4503
+	CloseForbidden       = 4403
+	CloseHeartbeat       = 4408
+	CloseRateLimited     = 4429
+	CloseOverloaded      = 4503
 )
 
 const websocketGUID = "258EAFA5-E914-47DA-95CA-C5AB0DC85B11"
 
 // Ошибки.
 var (
-	ErrNotWebSocket   = errors.New("wsx: запрос не является WebSocket-рукопожатием")
-	ErrBadVersion     = errors.New("wsx: неподдерживаемая версия WebSocket")
-	ErrClosed         = errors.New("wsx: соединение закрыто")
-	ErrFrameTooBig    = errors.New("wsx: кадр превышает лимит")
-	ErrSlowConsumer   = errors.New("wsx: очередь переполнена (медленный клиент)")
+	ErrNotWebSocket      = errors.New("wsx: запрос не является WebSocket-рукопожатием")
+	ErrBadVersion        = errors.New("wsx: неподдерживаемая версия WebSocket")
+	ErrClosed            = errors.New("wsx: соединение закрыто")
+	ErrFrameTooBig       = errors.New("wsx: кадр превышает лимит")
+	ErrSlowConsumer      = errors.New("wsx: очередь переполнена (медленный клиент)")
 	ErrControlFragmented = errors.New("wsx: фрагментированный control-кадр")
 )
 
 // Conn — WebSocket-соединение.
 type Conn struct {
-	rwc      net.Conn
-	br       *bufio.Reader
-	writeMu  sync.Mutex
-	out      chan []byte
-	done     chan struct{}
-	maxFrame int
-	closed   atomic.Bool
+	rwc       net.Conn
+	br        *bufio.Reader
+	writeMu   sync.Mutex
+	out       chan []byte
+	done      chan struct{}
+	maxFrame  int
+	closed    atomic.Bool
 	closeOnce sync.Once
-	RemoteIP string
-	UserID   string
-	DeviceID string
-	Meta     map[string]string
+	RemoteIP  string
+	UserID    string
+	DeviceID  string
+	Meta      map[string]string
 
 	readDeadline  time.Duration
 	writeDeadline time.Duration
@@ -159,13 +159,13 @@ func Upgrade(w http.ResponseWriter, r *http.Request, opts Options) (*Conn, error
 	}
 
 	c := &Conn{
-		rwc:      netConn,
-		br:       bufio.NewReaderSize(rw.Reader, 8<<10),
-		out:      make(chan []byte, opts.SendQueue),
-		done:     make(chan struct{}),
-		maxFrame: opts.MaxFrameBytes,
-		RemoteIP: remoteIP(r),
-		Meta:     map[string]string{},
+		rwc:           netConn,
+		br:            bufio.NewReaderSize(rw.Reader, 8<<10),
+		out:           make(chan []byte, opts.SendQueue),
+		done:          make(chan struct{}),
+		maxFrame:      opts.MaxFrameBytes,
+		RemoteIP:      remoteIP(r),
+		Meta:          map[string]string{},
 		readDeadline:  opts.ReadTimeout,
 		writeDeadline: opts.WriteTimeout,
 		connectedAt:   time.Now(),

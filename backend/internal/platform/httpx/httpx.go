@@ -25,12 +25,12 @@ const (
 
 // APIError — доменная ошибка HTTP-слоя с машинным кодом.
 type APIError struct {
-	Code      string         `json:"code"`
-	Message   string         `json:"message"`
-	Status    int            `json:"status"`
-	Details   map[string]any `json:"details,omitempty"`
-	RequestID string         `json:"request_id,omitempty"`
-	RetryAfter int           `json:"retry_after,omitempty"`
+	Code       string         `json:"code"`
+	Message    string         `json:"message"`
+	Status     int            `json:"status"`
+	Details    map[string]any `json:"details,omitempty"`
+	RequestID  string         `json:"request_id,omitempty"`
+	RetryAfter int            `json:"retry_after,omitempty"`
 }
 
 func (e *APIError) Error() string { return e.Code + ": " + e.Message }

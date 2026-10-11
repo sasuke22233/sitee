@@ -52,13 +52,13 @@ const (
 
 // Ошибки.
 var (
-	ErrBadEnvelope   = errors.New("cryptod: повреждённый envelope")
-	ErrBadKeyID      = errors.New("cryptod: неизвестный key_id (нужна ротация/миграция)")
-	ErrAuthFailed    = errors.New("cryptod: проверка подлинности не пройдена")
-	ErrBadSecret     = errors.New("cryptod: некорректный секрет")
-	ErrWeakPassword  = errors.New("cryptod: пароль не соответствует политике")
-	ErrTokenExpired  = errors.New("cryptod: токен истёк")
-	ErrTokenInvalid  = errors.New("cryptod: подпись токена недействительна")
+	ErrBadEnvelope     = errors.New("cryptod: повреждённый envelope")
+	ErrBadKeyID        = errors.New("cryptod: неизвестный key_id (нужна ротация/миграция)")
+	ErrAuthFailed      = errors.New("cryptod: проверка подлинности не пройдена")
+	ErrBadSecret       = errors.New("cryptod: некорректный секрет")
+	ErrWeakPassword    = errors.New("cryptod: пароль не соответствует политике")
+	ErrTokenExpired    = errors.New("cryptod: токен истёк")
+	ErrTokenInvalid    = errors.New("cryptod: подпись токена недействительна")
 	ErrCoreUnreachable = errors.New("cryptod: crypto-core недоступен, применён Go-fallback")
 )
 
@@ -68,10 +68,10 @@ type Core struct {
 	idxKey  []byte // ключ blind-индексов
 	signKey []byte // ключ подписи служебных данных (HMAC)
 
-	mu        sync.RWMutex
-	aeads     map[string]cipher.AEAD
-	keyIDs    map[string][keyIDLen]byte
-	kekFP     string
+	mu     sync.RWMutex
+	aeads  map[string]cipher.AEAD
+	keyIDs map[string][keyIDLen]byte
+	kekFP  string
 
 	remoteURL   string
 	remoteToken string
@@ -435,11 +435,11 @@ func (c *Core) DecryptString(domain, objectID, blob string) (string, error) {
 // remoteEncrypt вызывает Rust crypto-core (POST /v1/encrypt).
 func (c *Core) remoteEncrypt(domain, objectID string, plaintext []byte) (string, error) {
 	payload, err := json.Marshal(map[string]any{
-		"domain":     domain,
-		"object_id":  objectID,
-		"plaintext":  base64.StdEncoding.EncodeToString(plaintext),
-		"aad":        domain + ":" + objectID,
-		"kek_fp":     c.kekFP,
+		"domain":    domain,
+		"object_id": objectID,
+		"plaintext": base64.StdEncoding.EncodeToString(plaintext),
+		"aad":       domain + ":" + objectID,
+		"kek_fp":    c.kekFP,
 	})
 	if err != nil {
 		return "", err

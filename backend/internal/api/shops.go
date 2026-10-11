@@ -432,14 +432,14 @@ func translit(in string) string {
 }
 
 type shopUpdateRequest struct {
-	Name        string  `json:"name"`
-	Description string  `json:"description"`
-	CoverURL    string  `json:"cover_url"`
-	AvatarURL   string  `json:"avatar_url"`
-	CategoryIDs []int64 `json:"category_ids"`
-	CityID      int64   `json:"city_id"`
-	TZ          string  `json:"tz"`
-	AcceptsStars *bool  `json:"accepts_stars"`
+	Name         string  `json:"name"`
+	Description  string  `json:"description"`
+	CoverURL     string  `json:"cover_url"`
+	AvatarURL    string  `json:"avatar_url"`
+	CategoryIDs  []int64 `json:"category_ids"`
+	CityID       int64   `json:"city_id"`
+	TZ           string  `json:"tz"`
+	AcceptsStars *bool   `json:"accepts_stars"`
 }
 
 func (s *Server) handleUpdateShop(w http.ResponseWriter, r *http.Request) {
@@ -551,17 +551,17 @@ func (s *Server) handleShopStats(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 		out = map[string]any{
-			"shop_id": sh.ID,
+			"shop_id":   sh.ID,
 			"orders_7d": orders7, "orders_30d": orders30,
-			"revenue_sol": store.FormatSOL(revenue),
-			"balance_sol": store.FormatSOL(s.Store.BalanceLocked(store.ShopAccount(sh.ID, store.AssetSOL))),
+			"revenue_sol":   store.FormatSOL(revenue),
+			"balance_sol":   store.FormatSOL(s.Store.BalanceLocked(store.ShopAccount(sh.ID, store.AssetSOL))),
 			"balance_stars": s.Store.BalanceLocked(store.ShopAccount(sh.ID, store.AssetStars)),
-			"disputes": disputes,
-			"dispute_rate": sh.DisputeRate,
-			"rating": round1(sh.RatingBayes), "rating_count": sh.RatingCount,
+			"disputes":      disputes,
+			"dispute_rate":  sh.DisputeRate,
+			"rating":        round1(sh.RatingBayes), "rating_count": sh.RatingCount,
 			"response_p50_s": sh.ResponseP50S,
-			"feed_score": sh.FeedScore,
-			"rent": s.rentDTOLocked(sh.ID),
+			"feed_score":     sh.FeedScore,
+			"rent":           s.rentDTOLocked(sh.ID),
 			"products_total": countProductsLocked(s.Store, sh.ID),
 		}
 	})
@@ -874,16 +874,16 @@ func (s *Server) handleGetProduct(w http.ResponseWriter, r *http.Request) {
 }
 
 type productCreateRequest struct {
-	Title         string   `json:"title"`
-	Description   string   `json:"description"`
-	Kind          string   `json:"kind"`
-	CategoryID    int64    `json:"category_id"`
-	PriceSOL      string   `json:"price_sol"`
-	PriceStars    int64    `json:"price_stars"`
-	WarrantyDays  int      `json:"warranty_days"`
-	DeliverySLAH  int      `json:"delivery_sla_h"`
-	StockItems    []string `json:"stock_items"`
-	MediaURLs     []string `json:"media_urls"`
+	Title        string   `json:"title"`
+	Description  string   `json:"description"`
+	Kind         string   `json:"kind"`
+	CategoryID   int64    `json:"category_id"`
+	PriceSOL     string   `json:"price_sol"`
+	PriceStars   int64    `json:"price_stars"`
+	WarrantyDays int      `json:"warranty_days"`
+	DeliverySLAH int      `json:"delivery_sla_h"`
+	StockItems   []string `json:"stock_items"`
+	MediaURLs    []string `json:"media_urls"`
 }
 
 func (s *Server) handleCreateProduct(w http.ResponseWriter, r *http.Request) {

@@ -141,7 +141,7 @@ func (s *Server) handleWS(w http.ResponseWriter, r *http.Request) {
 		"user_id": user.ID, "nickname": user.Nickname, "role": user.Role,
 		"server_time": time.Now().UTC(), "ping_every_s": int(s.Cfg.WSPingEvery.Seconds()),
 		"max_frame": s.Cfg.WSMaxFrame, "e2ee": true,
-		"notice":    "Все тексты передаются по WSS; тела сообщений — в ciphertext (FR-MSG-03).",
+		"notice": "Все тексты передаются по WSS; тела сообщений — в ciphertext (FR-MSG-03).",
 	})
 	s.broadcastPresence(user.ID, true)
 

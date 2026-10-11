@@ -34,27 +34,27 @@ type Config struct {
 	TGBotUsername string
 
 	// Solana
-	SolanaRPC       []string
-	SolanaNetwork   string
-	HotWalletPath   string
-	HotWalletLimit  int64 // lamports
-	MinDeposit      int64 // lamports
-	Confirmations   int
+	SolanaRPC        []string
+	SolanaNetwork    string
+	HotWalletPath    string
+	HotWalletLimit   int64 // lamports
+	MinDeposit       int64 // lamports
+	Confirmations    int
 	ConfirmationsBig int
 
 	// Лимиты и пороги (docs/economy.md §8)
-	WithdrawDailyLamports int64
-	FourEyesLamports      int64
+	WithdrawDailyLamports   int64
+	FourEyesLamports        int64
 	OpsTotThresholdLamports int64
-	OpsTotThresholdStars  int64
-	ExchangeFeeBPS        int
-	SOLStarsRate          float64 // SOL за 1 звезду
-	AutoConfirmHours      int
-	PayTimeoutMinutes     int
-	ReviewWindowDays      int
-	DisputeReplyHours     int
-	DisputeWindowDays     int
-	WarmupHours           int
+	OpsTotThresholdStars    int64
+	ExchangeFeeBPS          int
+	SOLStarsRate            float64 // SOL за 1 звезду
+	AutoConfirmHours        int
+	PayTimeoutMinutes       int
+	ReviewWindowDays        int
+	DisputeReplyHours       int
+	DisputeWindowDays       int
+	WarmupHours             int
 
 	// HTTP
 	FrontendDir    string
@@ -79,30 +79,30 @@ type Config struct {
 // Load читает конфигурацию из окружения.
 func Load() (*Config, error) {
 	c := &Config{
-		Env:                   envStr("SITEED_ENV", "dev"),
-		Addr:                  envStr("SITEED_ADDR", "0.0.0.0:8080"),
-		DataDir:               envStr("SITEED_DATA_DIR", ""),
-		SnapshotInterval:      envDur("SITEED_SNAPSHOT_INTERVAL", 30*time.Second),
-		SeedDemo:              envBool("SITEED_SEED_DEMO", true),
+		Env:              envStr("SITEED_ENV", "dev"),
+		Addr:             envStr("SITEED_ADDR", "0.0.0.0:8080"),
+		DataDir:          envStr("SITEED_DATA_DIR", ""),
+		SnapshotInterval: envDur("SITEED_SNAPSHOT_INTERVAL", 30*time.Second),
+		SeedDemo:         envBool("SITEED_SEED_DEMO", true),
 
-		KEK:                   envStr("SITEED_KEK_HEX", ""),
-		CryptoCoreURL:         envStr("CRYPTO_CORE_URL", ""),
-		CryptoCoreToken:       envStr("CRYPTO_CORE_TOKEN", ""),
-		JWTSeed:               envStr("SITEED_JWT_SEED_HEX", ""),
-		JWTIssuer:             envStr("SITEED_JWT_ISSUER", "sitee"),
-		AccessTTL:             envDur("SITEED_ACCESS_TTL", 15*time.Minute),
-		RefreshTTL:            envDur("SITEED_REFRESH_TTL", 30*24*time.Hour),
+		KEK:             envStr("SITEED_KEK_HEX", ""),
+		CryptoCoreURL:   envStr("CRYPTO_CORE_URL", ""),
+		CryptoCoreToken: envStr("CRYPTO_CORE_TOKEN", ""),
+		JWTSeed:         envStr("SITEED_JWT_SEED_HEX", ""),
+		JWTIssuer:       envStr("SITEED_JWT_ISSUER", "sitee"),
+		AccessTTL:       envDur("SITEED_ACCESS_TTL", 15*time.Minute),
+		RefreshTTL:      envDur("SITEED_REFRESH_TTL", 30*24*time.Hour),
 
-		TGBotToken:            envStr("TG_BOT_TOKEN", ""),
-		TGBotUsername:         envStr("TG_BOT_USERNAME", "sitee_bot"),
+		TGBotToken:    envStr("TG_BOT_TOKEN", ""),
+		TGBotUsername: envStr("TG_BOT_USERNAME", "sitee_bot"),
 
-		SolanaRPC:             envList("SOLANA_RPC_URLS", ""),
-		SolanaNetwork:         envStr("SOLANA_NETWORK", "devnet"),
-		HotWalletPath:         envStr("SOL_HOT_WALLET_PATH", "m/44'/501'/0'/0'"),
-		HotWalletLimit:        envLamports("SOL_HOT_WALLET_LIMIT_SOL", "500"),
-		MinDeposit:            envLamports("SOL_MIN_DEPOSIT", "0.01"),
-		Confirmations:         envInt("SOL_CONFIRMATIONS", 32),
-		ConfirmationsBig:      envInt("SOL_CONFIRMATIONS_BIG", 64),
+		SolanaRPC:        envList("SOLANA_RPC_URLS", ""),
+		SolanaNetwork:    envStr("SOLANA_NETWORK", "devnet"),
+		HotWalletPath:    envStr("SOL_HOT_WALLET_PATH", "m/44'/501'/0'/0'"),
+		HotWalletLimit:   envLamports("SOL_HOT_WALLET_LIMIT_SOL", "500"),
+		MinDeposit:       envLamports("SOL_MIN_DEPOSIT", "0.01"),
+		Confirmations:    envInt("SOL_CONFIRMATIONS", 32),
+		ConfirmationsBig: envInt("SOL_CONFIRMATIONS_BIG", 64),
 
 		WithdrawDailyLamports:   envLamports("LIMIT_WITHDRAW_DAILY_SOL", "50"),
 		FourEyesLamports:        envLamports("LIMIT_FOUR_EYES_SOL", "100"),
@@ -187,7 +187,7 @@ func (c *Config) IsProd() bool { return c.Env == "prod" }
 // PublicConfig — публичная часть конфигурации для GET /auth/config.
 func (c *Config) PublicConfig() map[string]any {
 	return map[string]any{
-		"env": c.Env,
+		"env":      c.Env,
 		"password": map[string]any{"min_len": 12, "classes": 3, "algo": "argon2id", "mvp_algo": "pbkdf2-sha256"},
 		"captcha": map[string]any{
 			"provider": "turnstile", "site_key": envStr("CAPTCHA_SITE_KEY", ""),
@@ -203,14 +203,14 @@ func (c *Config) PublicConfig() map[string]any {
 			"confirmations": c.Confirmations, "confirmations_big": c.ConfirmationsBig,
 		},
 		"limits": map[string]any{
-			"withdraw_daily_sol":        lamportsToFloat(c.WithdrawDailyLamports),
-			"withdraw_four_eyes_sol":    lamportsToFloat(c.FourEyesLamports),
-			"ops_totp_threshold_sol":    lamportsToFloat(c.OpsTotThresholdLamports),
-			"ops_totp_threshold_stars":  c.OpsTotThresholdStars,
-			"exchange_fee_bps":          c.ExchangeFeeBPS,
-			"order_auto_confirm_hours":  c.AutoConfirmHours,
-			"review_window_days":        c.ReviewWindowDays,
-			"warmup_hours":              c.WarmupHours,
+			"withdraw_daily_sol":       lamportsToFloat(c.WithdrawDailyLamports),
+			"withdraw_four_eyes_sol":   lamportsToFloat(c.FourEyesLamports),
+			"ops_totp_threshold_sol":   lamportsToFloat(c.OpsTotThresholdLamports),
+			"ops_totp_threshold_stars": c.OpsTotThresholdStars,
+			"exchange_fee_bps":         c.ExchangeFeeBPS,
+			"order_auto_confirm_hours": c.AutoConfirmHours,
+			"review_window_days":       c.ReviewWindowDays,
+			"warmup_hours":             c.WarmupHours,
 		},
 		"features": map[string]any{
 			"stars": true, "sol": true, "exchange": true, "gifts": true,
@@ -218,7 +218,7 @@ func (c *Config) PublicConfig() map[string]any {
 		},
 		"ws": map[string]any{
 			"max_frame_bytes": c.WSMaxFrame, "ping_interval_s": int(c.WSPingEvery.Seconds()),
-			"auth_window_s": int(c.WSAuthWindow.Seconds()),
+			"auth_window_s":   int(c.WSAuthWindow.Seconds()),
 			"max_conn_per_ip": c.WSMaxPerIP, "max_conn_per_user": c.WSMaxPerUser,
 		},
 	}
