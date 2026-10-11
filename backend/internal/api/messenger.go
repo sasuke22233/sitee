@@ -176,7 +176,9 @@ func (s *Server) appendSystemMessageLocked(c *store.Chat, sender *store.User, pa
 }
 
 // systemMessage — внешний помощник: пишет системное сообщение в чат и уведомляет участника.
-func (s *Server) systemMessage(userID, chatID, kind, orderID, status, amount, asset string) {
+// amount — any: в чат уходит fmt.Sprint(amount), поэтому можно передавать
+// и строку («0», «»), и результат amountStr (int64 звёзд либо SOL-строку).
+func (s *Server) systemMessage(userID, chatID, kind, orderID, status string, amount any, asset string) {
 	if chatID == "" {
 		return
 	}
