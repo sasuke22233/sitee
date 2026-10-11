@@ -1,0 +1,19 @@
+# Конфигурация gitleaks для SITEE.
+#
+# Дефолтный набор правил расширяем как есть (useDefault), но добавляем
+# глобальный allowlist: файл deploy/.env.example по определению состоит из
+# ПОДСТАВНЫХ значений (dev-service-token, minioadmin, dev-telegram-bot-token).
+# Они не являются секретами, однако правило generic-api-key срабатывает на них
+# по ключевым словам в именах переменных (TOKEN/SECRET_KEY/ACCESS_KEY), и шаг
+# падал бы вечно. Настоящие секреты живут в deploy/.env, который в .gitignore.
+
+title = "SITEE gitleaks config"
+
+[extend]
+useDefault = true
+
+[allowlist]
+description = "Подставные значения в примере окружения"
+paths = [
+    '''deploy/\.env\.example''',
+]

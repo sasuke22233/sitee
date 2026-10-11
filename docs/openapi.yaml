@@ -1,0 +1,2912 @@
+openapi: 3.1.0
+info:
+  title: SITEE Marketplace API
+  version: 1.0.0
+  summary: Маркетплейс цифровых товаров с расчётами в SOL и Telegram Stars
+  description: |
+    Контракт REST API площадки SITEE. WebSocket-контракт описан в `docs/architecture.md` (§5)
+    и `docs/api.md` (§10). Все денежные суммы: SOL — строка decimal (9 знаков), Stars — целое.
+    Все ответы с ошибками имеют единый формат `Error`. Мутирующие финансовые операции требуют
+    заголовок `Idempotency-Key`.
+  contact:
+    name: SITEE Engineering
+servers:
+  - url: https://api.sitee.example/api/v1
+    description: Production
+  - url: http://localhost:8080/api/v1
+    description: Local dev
+security:
+  - bearerAuth: []
+tags:
+  - name: auth
+  - name: geo
+  - name: shops
+  - name: rent
+  - name: products
+  - name: orders
+  - name: disputes
+  - name: chats
+  - name: e2ee
+  - name: wallet
+  - name: exchange
+  - name: gifts
+  - name: reviews
+  - name: admin
+
+paths:
+  /auth/config:
+    get:
+      tags: [auth]
+      operationId: getAuthConfig
+      security: []
+      summary: Публичная конфигурация входа (политика паролей, капча, 2FA)
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AuthConfig' }
+
+  /geo/countries:
+    get:
+      tags: [geo]
+      operationId: listCountries
+      security: []
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  items:
+                    type: array
+                    items: { $ref: '#/components/schemas/Country' }
+
+  /geo/cities:
+    get:
+      tags: [geo]
+      operationId: listCities
+      security: []
+      parameters:
+        - { name: country, in: query, schema: { type: string, minLength: 2, maxLength: 2 } }
+        - { name: q, in: query, schema: { type: string } }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  items:
+                    type: array
+                    items: { $ref: '#/components/schemas/City' }
+
+  /auth/register:
+    post:
+      tags: [auth]
+      operationId: register
+      security: []
+      summary: Регистрация (FR-AUTH-02)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/RegisterRequest' }
+      responses:
+        '201':
+          description: Создан enrollment, ожидает код подтверждения
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Enrollment' }
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '409': { $ref: '#/components/responses/ConflictError' }
+        '413': { $ref: '#/components/responses/PayloadTooLarge' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+
+  /auth/verify-contact:
+    post:
+      tags: [auth]
+      operationId: verifyContact
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [enrollment_id, code]
+              properties:
+                enrollment_id: { type: string }
+                code: { type: string, pattern: '^[0-9]{6}$' }
+      responses:
+        '200':
+          description: Код принят, следующий шаг — настройка 2FA
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Enrollment' }
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '423': { $ref: '#/components/responses/Locked' }
+
+  /auth/2fa/setup:
+    post:
+      tags: [auth]
+      operationId: setup2fa
+      summary: Выдать секрет TOTP для фактора (FR-2FA-02)
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [factor]
+              properties:
+                factor: { $ref: '#/components/schemas/TotpFactor' }
+                enrollment_id: { type: string }
+      responses:
+        '200':
+          description: Секрет и otpauth-URI
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/TotpSetup' }
+
+  /auth/2fa/activate:
+    post:
+      tags: [auth]
+      operationId: activate2fa
+      summary: Активация фактора двумя кодами подряд + backup-коды (FR-2FA-02/03)
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [factor, code_1, code_2]
+              properties:
+                factor: { $ref: '#/components/schemas/TotpFactor' }
+                enrollment_id: { type: string }
+                code_1: { type: string, pattern: '^[0-9]{6}$' }
+                code_2: { type: string, pattern: '^[0-9]{6}$' }
+      responses:
+        '200':
+          description: Фактор активен
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status: { type: string, enum: [active] }
+                  backup_codes:
+                    type: array
+                    items: { type: string, pattern: '^[A-Z0-9]{5}-[A-Z0-9]{5}$' }
+        '400': { $ref: '#/components/responses/ValidationError' }
+
+  /auth/login:
+    post:
+      tags: [auth]
+      operationId: login
+      security: []
+      summary: Вход (пароль → вызов 2FA)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/LoginRequest' }
+      responses:
+        '200':
+          description: Требуется фактор 2FA
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/LoginChallenge' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '423': { $ref: '#/components/responses/Locked' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+
+  /auth/2fa/verify:
+    post:
+      tags: [auth]
+      operationId: verify2fa
+      security: []
+      summary: Подтверждение TOTP и выдача токенов (FR-AUTH-05)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [session_id, factor, code]
+              properties:
+                session_id: { type: string }
+                factor: { $ref: '#/components/schemas/TotpFactor' }
+                code: { type: string, pattern: '^[0-9]{6}$' }
+                backup_code: { type: string }
+      responses:
+        '200':
+          description: Сессия выдана; `redirect` — куда переходит клиент
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AuthSession' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '423': { $ref: '#/components/responses/Locked' }
+
+  /auth/me:
+    get:
+      tags: [auth]
+      operationId: getMe
+      responses:
+        '200':
+          description: Текущий пользователь
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Me' }
+
+  /auth/refresh:
+    post:
+      tags: [auth]
+      operationId: refresh
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [refresh_token]
+              properties:
+                refresh_token: { type: string }
+      responses:
+        '200':
+          description: Новые токены (ротация)
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AuthSession' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+
+  /shops:
+    get:
+      tags: [shops]
+      operationId: listShops
+      summary: Лента магазинов и поиск (FR-FEED-01…06)
+      security: []
+      parameters:
+        - { name: q, in: query, schema: { type: string, maxLength: 120 } }
+        - { name: country, in: query, schema: { type: string } }
+        - { name: city, in: query, schema: { type: integer } }
+        - { name: category, in: query, schema: { type: integer } }
+        - { name: min_rating, in: query, schema: { type: number, minimum: 0, maximum: 5 } }
+        - { name: crown_only, in: query, schema: { type: boolean } }
+        - { name: verified_only, in: query, schema: { type: boolean } }
+        - { name: sort, in: query, schema: { type: string, enum: [recommended, rating, sales, new, price] } }
+        - { name: cursor, in: query, schema: { type: string } }
+        - { name: limit, in: query, schema: { type: integer, minimum: 1, maximum: 50, default: 20 } }
+      responses:
+        '200':
+          description: Страница ленты
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ShopPage' }
+    post:
+      tags: [shops]
+      operationId: createShop
+      summary: Создать магазин (требуется фактор ops и аренда/триал)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ShopCreate' }
+      responses:
+        '201':
+          description: Создан
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ShopDetail' }
+        '403': { $ref: '#/components/responses/TotpRequired' }
+
+  /shops/{id}:
+    get:
+      tags: [shops]
+      operationId: getShop
+      security: []
+      parameters: [ { $ref: '#/components/parameters/PathId' } ]
+      responses:
+        '200':
+          description: Карточка магазина
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ShopDetail' }
+        '404': { $ref: '#/components/responses/NotFound' }
+    patch:
+      tags: [shops]
+      operationId: updateShop
+      summary: Изменение магазина (FR-SHOP-03)
+      security: [ { bearerAuth: [] } ]
+      parameters: [ { $ref: '#/components/parameters/PathId' } ]
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name: { type: string }
+                description: { type: string }
+                accepts_stars: { type: boolean }
+                cover_url: { type: string }
+                auto_renew: { type: boolean }
+      responses:
+        '200':
+          description: Обновлённый магазин
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ShopDetail' }
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/ConflictError' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+
+  /rent/plans:
+    get:
+      tags: [rent]
+      operationId: listRentPlans
+      responses:
+        '200':
+          description: Тарифы аренды
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  items:
+                    type: array
+                    items: { $ref: '#/components/schemas/RentPlan' }
+
+  /orders:
+    get:
+      tags: [orders]
+      operationId: listOrders
+      parameters:
+        - { name: role, in: query, schema: { type: string, enum: [buyer, shop] } }
+        - { name: status, in: query, schema: { $ref: '#/components/schemas/OrderStatus' } }
+        - { name: cursor, in: query, schema: { type: string } }
+      responses:
+        '200':
+          description: Список заказов
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  items:
+                    type: array
+                    items: { $ref: '#/components/schemas/Order' }
+    post:
+      tags: [orders]
+      operationId: createOrder
+      parameters:
+        - { name: Idempotency-Key, in: header, required: true, schema: { type: string } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/OrderCreate' }
+      responses:
+        '201':
+          description: Заказ создан
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Order' }
+        '422': { $ref: '#/components/responses/StockEmpty' }
+
+  /orders/{id}:
+    get:
+      tags: [orders]
+      operationId: getOrder
+      parameters: [ { $ref: '#/components/parameters/PathId' } ]
+      responses:
+        '200':
+          description: Заказ с таймлайном и доступными действиями
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Order' }
+
+  /chats:
+    get:
+      tags: [chats]
+      operationId: listChats
+      parameters:
+        - { name: filter, in: query, schema: { type: string, enum: [all, shops, orders, disputes, channels] } }
+        - { name: cursor, in: query, schema: { type: string } }
+      responses:
+        '200':
+          description: Список диалогов
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  items:
+                    type: array
+                    items: { $ref: '#/components/schemas/ChatListItem' }
+    post:
+      tags: [chats]
+      operationId: openChat
+      summary: Открыть диалог (с админом магазина, приватный, группа)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [kind]
+              properties:
+                kind: { type: string, enum: [shop_support, order, dispute, group, channel, direct] }
+                shop_id: { type: string }
+                order_id: { type: string }
+                user_id: { type: string }
+                title: { type: string }
+      responses:
+        '201':
+          description: Чат создан или возвращён существующий
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ChatDetail' }
+
+  /wallet:
+    get:
+      tags: [wallet]
+      operationId: getWallet
+      responses:
+        '200':
+          description: Балансы, депозитный адрес, лимиты
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Wallet' }
+
+  /wallet/withdraw:
+    post:
+      tags: [wallet]
+      operationId: withdraw
+      parameters:
+        - { name: Idempotency-Key, in: header, required: true, schema: { type: string } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [asset, amount, dest_address, totp_code]
+              properties:
+                asset: { $ref: '#/components/schemas/Asset' }
+                amount: { type: string }
+                dest_address: { type: string }
+                totp_code: { type: string, pattern: '^[0-9]{6}$' }
+      responses:
+        '202':
+          description: Вывод принят в обработку
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Withdrawal' }
+        '403': { $ref: '#/components/responses/TotpRequired' }
+
+  /exchange/quote:
+    get:
+      tags: [exchange]
+      operationId: getExchangeQuote
+      parameters:
+        - { name: from, in: query, required: true, schema: { $ref: '#/components/schemas/Asset' } }
+        - { name: to, in: query, required: true, schema: { $ref: '#/components/schemas/Asset' } }
+        - { name: amount, in: query, required: true, schema: { type: string } }
+      responses:
+        '200':
+          description: Котировка
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Quote' }
+
+  /exchange:
+    post:
+      tags: [exchange]
+      operationId: executeExchange
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [quote_id]
+              properties:
+                quote_id: { type: string }
+                totp_code: { type: string }
+      responses:
+        '200':
+          description: Обмен исполнен
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ExchangeOrder' }
+
+  /gifts:
+    get:
+      tags: [gifts]
+      operationId: listGifts
+      parameters:
+        - { name: rarity, in: query, schema: { type: string, enum: [common, rare, epic, legendary] } }
+        - { name: cursor, in: query, schema: { type: string } }
+      responses:
+        '200':
+          description: Каталог подарков
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  items:
+                    type: array
+                    items: { $ref: '#/components/schemas/Gift' }
+
+  /admin/gifts:
+    get:
+      tags: [admin]
+      operationId: adminListGifts
+      responses:
+        '200':
+          description: Все подарки включая черновики
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  items:
+                    type: array
+                    items: { $ref: '#/components/schemas/Gift' }
+    post:
+      tags: [admin]
+      operationId: adminCreateGift
+      summary: Добавить подарок (FR-STR-04)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/GiftAdmin' }
+      responses:
+        '201':
+          description: Подарок создан
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Gift' }
+        '403': { $ref: '#/components/responses/TotpRequired' }
+
+  /admin/dashboard:
+    get:
+      tags: [admin]
+      operationId: adminDashboard
+      responses:
+        '200':
+          description: Сводка площадки
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AdminDashboard' }
+
+  /admin/audit:
+    get:
+      tags: [admin]
+      operationId: adminAudit
+      summary: Неизменяемый аудит-лог с хэш-цепочкой
+      security: [ { bearerAuth: [] } ]
+      responses:
+        '200':
+          description: OK
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+
+  /admin/categories:
+    get:
+      tags: [admin]
+      operationId: adminListCategories
+      summary: "Категории: 18+ и чёрный список юрисдикций"
+      security: [ { bearerAuth: [] } ]
+      responses:
+        '200':
+          description: OK
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+
+  /admin/categories/{id}:
+    patch:
+      tags: [admin]
+      operationId: adminUpdateCategory
+      summary: Изменение гео-блокировок категории
+      security: [ { bearerAuth: [] } ]
+      parameters: [ { $ref: '#/components/parameters/PathId' } ]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [blocked_countries, restricted, totp_code, reason]
+              properties:
+                blocked_countries: { type: array, items: { type: string } }
+                restricted: { type: boolean }
+                totp_code: { type: string }
+                reason: { type: string }
+      responses:
+        '200':
+          description: OK
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '409': { $ref: '#/components/responses/ConflictError' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+
+  /admin/disputes:
+    get:
+      tags: [admin]
+      operationId: adminListDisputes
+      summary: Очередь споров
+      security: [ { bearerAuth: [] } ]
+      responses:
+        '200':
+          description: OK
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+
+  /admin/disputes/{id}/assign:
+    post:
+      tags: [admin]
+      operationId: adminAssignDispute
+      summary: Назначение арбитра на спор
+      security: [ { bearerAuth: [] } ]
+      parameters: [ { $ref: '#/components/parameters/PathId' } ]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [arbiter_id]
+              properties:
+                arbiter_id: { type: string }
+      responses:
+        '201':
+          description: Создано
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '409': { $ref: '#/components/responses/ConflictError' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+
+  /admin/finance/reconciliation:
+    get:
+      tags: [admin]
+      operationId: adminReconciliation
+      summary: Сверка ledger и Solana
+      security: [ { bearerAuth: [] } ]
+      responses:
+        '200':
+          description: OK
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+
+  /admin/gifts/{id}:
+    patch:
+      tags: [admin]
+      operationId: adminUpdateGift
+      summary: handleAdminUpdateGift
+      security: [ { bearerAuth: [] } ]
+      parameters: [ { $ref: '#/components/parameters/PathId' } ]
+      responses:
+        '200':
+          description: OK
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '409': { $ref: '#/components/responses/ConflictError' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+    delete:
+      tags: [admin]
+      operationId: adminArchiveGift
+      summary: handleAdminArchiveGift
+      security: [ { bearerAuth: [] } ]
+      parameters: [ { $ref: '#/components/parameters/PathId' } ]
+      responses:
+        '200':
+          description: OK
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '409': { $ref: '#/components/responses/ConflictError' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+
+  /admin/moderation/products:
+    get:
+      tags: [admin]
+      operationId: adminModerationQueue
+      summary: Очередь модерации товаров
+      security: [ { bearerAuth: [] } ]
+      responses:
+        '200':
+          description: OK
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+
+  /admin/moderation/products/{id}/approve:
+    post:
+      tags: [admin]
+      operationId: adminApproveProduct
+      summary: Одобрение товара
+      security: [ { bearerAuth: [] } ]
+      parameters: [ { $ref: '#/components/parameters/PathId' } ]
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                note: { type: string }
+      responses:
+        '201':
+          description: Создано
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '409': { $ref: '#/components/responses/ConflictError' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+
+  /admin/moderation/products/{id}/reject:
+    post:
+      tags: [admin]
+      operationId: adminRejectProduct
+      summary: Отклонение товара
+      security: [ { bearerAuth: [] } ]
+      parameters: [ { $ref: '#/components/parameters/PathId' } ]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [note]
+              properties:
+                note: { type: string }
+      responses:
+        '201':
+          description: Создано
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '409': { $ref: '#/components/responses/ConflictError' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+
+  /admin/orders:
+    get:
+      tags: [admin]
+      operationId: adminListOrders
+      summary: Поиск заказов
+      security: [ { bearerAuth: [] } ]
+      responses:
+        '200':
+          description: OK
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+
+  /admin/orders/{id}/status:
+    patch:
+      tags: [admin]
+      operationId: adminSetOrderStatus
+      summary: Ручная смена статуса заказа
+      security: [ { bearerAuth: [] } ]
+      parameters: [ { $ref: '#/components/parameters/PathId' } ]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [status, reason, totp_code]
+              properties:
+                status: { type: string }
+                reason: { type: string }
+                totp_code: { type: string }
+      responses:
+        '200':
+          description: OK
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '409': { $ref: '#/components/responses/ConflictError' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+
+  /admin/rent/plans:
+    get:
+      tags: [admin]
+      operationId: adminRentPlans
+      summary: Тарифы аренды (админ)
+      security: [ { bearerAuth: [] } ]
+      responses:
+        '200':
+          description: OK
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+
+  /admin/rent/plans/{id}:
+    patch:
+      tags: [admin]
+      operationId: adminUpdateRentPlan
+      summary: Изменение тарифа аренды
+      security: [ { bearerAuth: [] } ]
+      parameters: [ { $ref: '#/components/parameters/PathId' } ]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name_ru, price_sol, fee_bps, product_limit, grants_crown, active, totp_code]
+              properties:
+                name_ru: { type: string }
+                price_sol: { type: string }
+                fee_bps: { type: integer }
+                product_limit: { type: integer }
+                grants_crown: { type: boolean }
+                active: { type: boolean }
+                totp_code: { type: string }
+      responses:
+        '200':
+          description: OK
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '409': { $ref: '#/components/responses/ConflictError' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+
+  /admin/security/events:
+    get:
+      tags: [admin]
+      operationId: adminSecurityEvents
+      summary: События безопасности
+      security: [ { bearerAuth: [] } ]
+      responses:
+        '200':
+          description: OK
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+
+  /admin/security/ip-ban:
+    post:
+      tags: [admin]
+      operationId: adminIPBan
+      summary: Блокировка IP/CIDR
+      security: [ { bearerAuth: [] } ]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [cidr, until, reason, totp_code]
+              properties:
+                cidr: { type: string }
+                until: { type: string, format: date-time }
+                reason: { type: string }
+                totp_code: { type: string }
+      responses:
+        '201':
+          description: Создано
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '409': { $ref: '#/components/responses/ConflictError' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+
+  /admin/settings:
+    get:
+      tags: [admin]
+      operationId: adminListSettings
+      summary: Настройки площадки
+      security: [ { bearerAuth: [] } ]
+      responses:
+        '200':
+          description: OK
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+
+  /admin/settings/{key}:
+    patch:
+      tags: [admin]
+      operationId: adminSetSetting
+      summary: Изменение настройки
+      security: [ { bearerAuth: [] } ]
+      parameters: [ { $ref: '#/components/parameters/PathKey' } ]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [value, reason, totp_code]
+              properties:
+                value: {}
+                reason: { type: string }
+                totp_code: { type: string }
+      responses:
+        '200':
+          description: OK
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '409': { $ref: '#/components/responses/ConflictError' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+
+  /admin/shops:
+    get:
+      tags: [admin]
+      operationId: adminListShops
+      summary: Список магазинов для модерации
+      security: [ { bearerAuth: [] } ]
+      responses:
+        '200':
+          description: OK
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+
+  /admin/shops/{id}/rent/extend:
+    post:
+      tags: [admin]
+      operationId: adminRentExtend
+      summary: Ручное продление аренды
+      security: [ { bearerAuth: [] } ]
+      parameters: [ { $ref: '#/components/parameters/PathId' } ]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [days, reason, totp_code]
+              properties:
+                days: { type: integer }
+                reason: { type: string }
+                totp_code: { type: string }
+      responses:
+        '201':
+          description: Создано
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '409': { $ref: '#/components/responses/ConflictError' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+
+  /admin/shops/{id}/sanction:
+    post:
+      tags: [admin]
+      operationId: adminSanction
+      summary: Санкция магазину
+      security: [ { bearerAuth: [] } ]
+      parameters: [ { $ref: '#/components/parameters/PathId' } ]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [level, reason, until, totp_code]
+              properties:
+                level: { type: string, enum: [warn, restrict, suspend, ban] }
+                reason: { type: string }
+                until: { type: string, format: date-time }
+                totp_code: { type: string }
+      responses:
+        '201':
+          description: Создано
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '409': { $ref: '#/components/responses/ConflictError' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+
+  /admin/shops/{id}/verified:
+    post:
+      tags: [admin]
+      operationId: adminVerified
+      summary: Присвоение знака «проверенный»
+      security: [ { bearerAuth: [] } ]
+      parameters: [ { $ref: '#/components/parameters/PathId' } ]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [value, totp_code]
+              properties:
+                value: { type: boolean }
+                totp_code: { type: string }
+      responses:
+        '201':
+          description: Создано
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '409': { $ref: '#/components/responses/ConflictError' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+
+  /admin/users:
+    get:
+      tags: [admin]
+      operationId: adminListUsers
+      summary: Список пользователей
+      security: [ { bearerAuth: [] } ]
+      responses:
+        '200':
+          description: OK
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+
+  /admin/users/{id}:
+    patch:
+      tags: [admin]
+      operationId: adminUpdateUser
+      summary: Изменение пользователя (роль, статус, 2FA-reset)
+      security: [ { bearerAuth: [] } ]
+      parameters: [ { $ref: '#/components/parameters/PathId' } ]
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                role: { type: string }
+                status: { type: string }
+                totp_code: { type: string }
+                reason: { type: string }
+      responses:
+        '200':
+          description: OK
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '409': { $ref: '#/components/responses/ConflictError' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+
+  /auth/events:
+    get:
+      tags: [auth]
+      operationId: authEvents
+      summary: Журнал событий безопасности аккаунта
+      security: [ { bearerAuth: [] } ]
+      responses:
+        '200':
+          description: OK
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+
+  /auth/logout:
+    post:
+      tags: [auth]
+      operationId: logout
+      summary: Выход, отзыв refresh-токена
+      security: [ { bearerAuth: [] } ]
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                refresh_token: { type: string }
+                all_devices: { type: boolean, default: false }
+      responses:
+        '201':
+          description: Создано
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '409': { $ref: '#/components/responses/ConflictError' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+
+  /auth/password/change:
+    post:
+      tags: [auth]
+      operationId: changePassword
+      summary: Смена пароля (фактор ops)
+      security: [ { bearerAuth: [] } ]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [current_password, new_password, totp_code]
+              properties:
+                current_password: { type: string }
+                new_password: { type: string, minLength: 10 }
+                totp_code: { type: string, pattern: '^[0-9]{6}$' }
+      responses:
+        '201':
+          description: Создано
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '409': { $ref: '#/components/responses/ConflictError' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+
+  /auth/sessions:
+    get:
+      tags: [auth]
+      operationId: sessions
+      summary: Список активных сессий и устройств
+      security: [ { bearerAuth: [] } ]
+      responses:
+        '200':
+          description: OK
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+
+  /auth/sessions/{id}:
+    delete:
+      tags: [auth]
+      operationId: revokeSession
+      summary: Отзыв одной сессии
+      security: [ { bearerAuth: [] } ]
+      parameters: [ { $ref: '#/components/parameters/PathId' } ]
+      responses:
+        '200':
+          description: OK
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '409': { $ref: '#/components/responses/ConflictError' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+
+  /auth/telegram/init-data:
+    post:
+      tags: [auth]
+      operationId: telegramInitData
+      summary: Вход через Telegram initData (TMA)
+      security: [ { bearerAuth: [] } ]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [init_data, device_id]
+              properties:
+                init_data: { type: string }
+                device_id: { type: string }
+      responses:
+        '201':
+          description: Создано
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '409': { $ref: '#/components/responses/ConflictError' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+
+  /categories:
+    get:
+      tags: [shops]
+      operationId: categories
+      summary: Справочник категорий
+      security: []
+      responses:
+        '200':
+          description: OK
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+
+  /chats/{id}:
+    get:
+      tags: [chats]
+      operationId: getChat
+      summary: Карточка чата с участниками
+      security: [ { bearerAuth: [] } ]
+      parameters: [ { $ref: '#/components/parameters/PathId' } ]
+      responses:
+        '200':
+          description: OK
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+
+  /chats/{id}/messages:
+    get:
+      tags: [chats]
+      operationId: listMessages
+      summary: handleListMessages
+      security: [ { bearerAuth: [] } ]
+      parameters: [ { $ref: '#/components/parameters/PathId' } ]
+      responses:
+        '200':
+          description: OK
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+    post:
+      tags: [chats]
+      operationId: sendMessage
+      summary: handleSendMessage
+      security: [ { bearerAuth: [] } ]
+      parameters: [ { $ref: '#/components/parameters/PathId' } ]
+      responses:
+        '201':
+          description: Создано
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '409': { $ref: '#/components/responses/ConflictError' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+
+  /chats/{id}/read:
+    post:
+      tags: [chats]
+      operationId: markRead
+      summary: Отметка сообщений прочитанными
+      security: [ { bearerAuth: [] } ]
+      parameters: [ { $ref: '#/components/parameters/PathId' } ]
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                up_to_message_id: { type: string }
+      responses:
+        '200':
+          description: OK
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '409': { $ref: '#/components/responses/ConflictError' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+
+  /dev/simulate-deposit:
+    post:
+      tags: [admin]
+      operationId: devSimulateDeposit
+      summary: Демо-зачисление депозита (dev)
+      security: [ { bearerAuth: [] } ]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [address, amount_sol]
+              properties:
+                address: { type: string }
+                amount_sol: { type: string }
+      responses:
+        '201':
+          description: Создано
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '409': { $ref: '#/components/responses/ConflictError' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+
+  /disputes:
+    get:
+      tags: [disputes]
+      operationId: listDisputes
+      summary: Список споров пользователя
+      security: [ { bearerAuth: [] } ]
+      responses:
+        '200':
+          description: OK
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+
+  /disputes/{id}:
+    get:
+      tags: [disputes]
+      operationId: getDispute
+      summary: Карточка спора с маскированием сторон
+      security: [ { bearerAuth: [] } ]
+      parameters: [ { $ref: '#/components/parameters/PathId' } ]
+      responses:
+        '200':
+          description: OK
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+
+  /disputes/{id}/escalate:
+    post:
+      tags: [disputes]
+      operationId: escalateDispute
+      summary: Передача спора арбитру
+      security: [ { bearerAuth: [] } ]
+      parameters: [ { $ref: '#/components/parameters/PathId' } ]
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                reason: { type: string }
+      responses:
+        '201':
+          description: Создано
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '409': { $ref: '#/components/responses/ConflictError' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+
+  /disputes/{id}/evidence:
+    post:
+      tags: [disputes]
+      operationId: addEvidence
+      summary: Добавление доказательства в спор
+      security: [ { bearerAuth: [] } ]
+      parameters: [ { $ref: '#/components/parameters/PathId' } ]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [kind, content]
+              properties:
+                kind: { type: string, enum: [screenshot, log, text, file] }
+                content: { type: string }
+      responses:
+        '201':
+          description: Создано
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '409': { $ref: '#/components/responses/ConflictError' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+  /disputes/{id}/appeal:
+    post:
+      tags: [disputes]
+      operationId: appealDispute
+      summary: "Апелляция на решение (FR-DSP-08)"
+      description: |
+        Одна апелляция на спор, окно 72 часа с момента решения. Спор переводится в
+        статус `appeal`, назначается старший арбитр (не тот, кто выносил решение),
+        исполнение `refund_*` приостанавливается до решения по апелляции.
+      security: [ { bearerAuth: [] } ]
+      parameters: [ { $ref: '#/components/parameters/PathId' } ]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [reason]
+              properties:
+                reason: { type: string, minLength: 30, maxLength: 4000 }
+      responses:
+        '200':
+          description: Апелляция принята
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  id: { type: string }
+                  status: { type: string, enum: [appeal] }
+                  appeal_of: { type: string }
+                  appealed_at: { type: string, format: date-time }
+                  appeal_reason: { type: string }
+                  execution_suspended: { type: boolean }
+                  senior_arbiter_assigned: { type: string }
+                  actions: { type: array, items: { type: string } }
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/ConflictError' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+
+  /disputes/{id}/evidence/{evidenceId}:
+    get:
+      tags: [disputes]
+      operationId: getDisputeEvidence
+      summary: Одно доказательство спора с расшифровкой
+      description: |
+        Участник видит только свои вложения, арбитр/модератор — все.
+        Просмотр арбитром пишется в аудит (`dispute.evidence_view`).
+      security: [ { bearerAuth: [] } ]
+      parameters:
+        - { $ref: '#/components/parameters/PathId' }
+        - { name: evidenceId, in: path, required: true, schema: { type: string } }
+      responses:
+        '200':
+          description: Доказательство
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  id: { type: string }
+                  kind: { type: string, enum: [image, video, file, text] }
+                  name: { type: string }
+                  sha256: { type: string }
+                  size: { type: integer }
+                  meta_stripped: { type: boolean }
+                  created_at: { type: string, format: date-time }
+                  uploader_visible_as: { type: string }
+                  text: { type: string, description: 'Только для kind=text' }
+                  data_b64: { type: string, description: 'Только для файловых вложений' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+
+  /disputes/{id}/resolve:
+    post:
+      tags: [disputes]
+      operationId: resolveDispute
+      summary: handleResolveDispute
+      security: [ { bearerAuth: [] } ]
+      parameters: [ { $ref: '#/components/parameters/PathId' } ]
+      responses:
+        '201':
+          description: Создано
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '409': { $ref: '#/components/responses/ConflictError' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+
+  /e2ee/bundle/{userId}:
+    get:
+      tags: [e2ee]
+      operationId: getBundle
+      summary: Публичный ключевой bundle собеседника
+      security: [ { bearerAuth: [] } ]
+      parameters: [ { $ref: '#/components/parameters/PathUserId' } ]
+      responses:
+        '200':
+          description: OK
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+
+  /e2ee/safety/{userId}:
+    get:
+      tags: [e2ee]
+      operationId: getSafety
+      summary: Safety number для визуальной сверки ключей (FR-MSG-04)
+      description: Детерминированный код пары пользователей — совпадение подтверждает отсутствие MITM.
+      security: [ { bearerAuth: [] } ]
+      parameters: [ { $ref: '#/components/parameters/PathUserId' } ]
+      responses:
+        '200':
+          description: Номер и активные сессии
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  user_id: { type: string }
+                  nickname: { type: string }
+                  safety_number: { type: string }
+                  instruction: { type: string }
+                  sessions:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        id: { type: string }
+                        chat_id: { type: string }
+                        root_key_fingerprint: { type: string }
+                        safety_number: { type: string }
+                        created_at: { type: string, format: date-time }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+
+  /e2ee/prekeys:
+    post:
+      tags: [e2ee]
+      operationId: uploadPrekeys
+      summary: Загрузка prekeys для E2EE (X3DH)
+      security: [ { bearerAuth: [] } ]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [prekeys]
+              properties:
+                prekeys: { type: array, items: { type: object } }
+      responses:
+        '201':
+          description: Создано
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '409': { $ref: '#/components/responses/ConflictError' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+
+  /e2ee/sessions:
+    post:
+      tags: [e2ee]
+      operationId: createSession
+      summary: Регистрация E2EE-сессии
+      security: [ { bearerAuth: [] } ]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [chat_id, peer_user_id, ratchet_key]
+              properties:
+                chat_id: { type: string }
+                peer_user_id: { type: string }
+                ratchet_key: { type: string }
+      responses:
+        '201':
+          description: Создано
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '409': { $ref: '#/components/responses/ConflictError' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+
+  /gifts/inventory:
+    get:
+      tags: [gifts]
+      operationId: giftInventory
+      summary: Инвентарь подарков
+      security: [ { bearerAuth: [] } ]
+      responses:
+        '200':
+          description: OK
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+
+  /gifts/{id}/buy:
+    post:
+      tags: [gifts]
+      operationId: buyGift
+      summary: Покупка подарка за Stars или SOL
+      security: [ { bearerAuth: [] } ]
+      parameters: [ { $ref: '#/components/parameters/PathId' } ]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [asset, to_user_id, totp_code]
+              properties:
+                asset: { $ref: '#/components/schemas/Asset' }
+                to_user_id: { type: string }
+                totp_code: { type: string, pattern: '^[0-9]{6}$' }
+      responses:
+        '201':
+          description: Создано
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/TotpRequired' }
+        '422': { $ref: '#/components/responses/InsufficientFunds' }
+        '409': { $ref: '#/components/responses/ConflictError' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+
+  /notifications:
+    get:
+      tags: [notifications]
+      operationId: notifications
+      summary: Список уведомлений
+      security: [ { bearerAuth: [] } ]
+      responses:
+        '200':
+          description: OK
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+
+  /notifications/{id}/read:
+    post:
+      tags: [notifications]
+      operationId: notificationRead
+      summary: Отметить уведомление прочитанным
+      security: [ { bearerAuth: [] } ]
+      parameters: [ { $ref: '#/components/parameters/PathId' } ]
+      responses:
+        '200':
+          description: OK
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '409': { $ref: '#/components/responses/ConflictError' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+
+  /notifications/read-all:
+    post:
+      tags: [notifications]
+      operationId: notificationsReadAll
+      summary: Отметить все уведомления прочитанными (сбрасывает бейдж)
+      security: [ { bearerAuth: [] } ]
+      responses:
+        '200':
+          description: Количество прочитанных
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  read: { type: integer }
+                  unread: { type: integer, enum: [0] }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+
+  /orders/{id}/cancel:
+    post:
+      tags: [orders]
+      operationId: cancelOrder
+      summary: Отмена заказа покупателем
+      security: [ { bearerAuth: [] } ]
+      parameters: [ { $ref: '#/components/parameters/PathId' } ]
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                reason: { type: string }
+      responses:
+        '201':
+          description: Создано
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '409': { $ref: '#/components/responses/ConflictError' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+
+  /orders/{id}/confirm:
+    post:
+      tags: [orders]
+      operationId: confirmOrder
+      summary: handleConfirmOrder
+      security: [ { bearerAuth: [] } ]
+      parameters: [ { $ref: '#/components/parameters/PathId' } ]
+      responses:
+        '201':
+          description: Создано
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '409': { $ref: '#/components/responses/ConflictError' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+
+  /orders/{id}/deliver:
+    post:
+      tags: [orders]
+      operationId: deliverOrder
+      summary: Выдача товара продавцом
+      security: [ { bearerAuth: [] } ]
+      parameters: [ { $ref: '#/components/parameters/PathId' } ]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [payload]
+              properties:
+                payload: { type: string }
+      responses:
+        '201':
+          description: Создано
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '409': { $ref: '#/components/responses/ConflictError' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+
+  /orders/{id}/delivery:
+    get:
+      tags: [orders]
+      operationId: orderDelivery
+      summary: Получение купленного товара (расшифровка на клиенте)
+      security: [ { bearerAuth: [] } ]
+      parameters: [ { $ref: '#/components/parameters/PathId' } ]
+      responses:
+        '200':
+          description: OK
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+
+  /orders/{id}/dispute:
+    post:
+      tags: [orders]
+      operationId: openDispute
+      summary: Открытие спора по заказу
+      security: [ { bearerAuth: [] } ]
+      parameters: [ { $ref: '#/components/parameters/PathId' } ]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [reason_code, comment, evidence]
+              properties:
+                reason_code: { type: string }
+                comment: { type: string }
+                evidence: { type: array, items: { type: string } }
+      responses:
+        '201':
+          description: Создано
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/TotpRequired' }
+        '409': { $ref: '#/components/responses/ConflictError' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+
+  /orders/{id}/extend:
+    post:
+      tags: [orders]
+      operationId: extendOrder
+      summary: Продление срока подтверждения заказа
+      security: [ { bearerAuth: [] } ]
+      parameters: [ { $ref: '#/components/parameters/PathId' } ]
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                days: { type: integer, minimum: 1, maximum: 7 }
+      responses:
+        '201':
+          description: Создано
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '409': { $ref: '#/components/responses/ConflictError' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+
+  /orders/{id}/history:
+    get:
+      tags: [orders]
+      operationId: orderHistory
+      summary: История статусов заказа
+      security: [ { bearerAuth: [] } ]
+      parameters: [ { $ref: '#/components/parameters/PathId' } ]
+      responses:
+        '200':
+          description: OK
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+
+  /orders/{id}/pay:
+    post:
+      tags: [orders]
+      operationId: payOrder
+      summary: handlePayOrder
+      security: [ { bearerAuth: [] } ]
+      parameters: [ { $ref: '#/components/parameters/PathId' } ]
+      responses:
+        '201':
+          description: Создано
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/TotpRequired' }
+        '422': { $ref: '#/components/responses/InsufficientFunds' }
+        '409': { $ref: '#/components/responses/ConflictError' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+
+  /orders/{id}/processing:
+    post:
+      tags: [orders]
+      operationId: processingOrder
+      summary: Перевод заказа в обработку
+      security: [ { bearerAuth: [] } ]
+      parameters: [ { $ref: '#/components/parameters/PathId' } ]
+      responses:
+        '201':
+          description: Создано
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '409': { $ref: '#/components/responses/ConflictError' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+
+  /orders/{id}/review:
+    post:
+      tags: [orders]
+      operationId: createReview
+      summary: handleCreateReview
+      security: [ { bearerAuth: [] } ]
+      parameters: [ { $ref: '#/components/parameters/PathId' } ]
+      responses:
+        '201':
+          description: Создано
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '409': { $ref: '#/components/responses/ConflictError' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+
+  /products/{id}:
+    get:
+      tags: [products]
+      operationId: getProduct
+      summary: handleGetProduct
+      security: []
+      parameters: [ { $ref: '#/components/parameters/PathId' } ]
+      responses:
+        '200':
+          description: OK
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+    patch:
+      tags: [products]
+      operationId: updateProduct
+      summary: Изменение товара
+      security: [ { bearerAuth: [] } ]
+      parameters: [ { $ref: '#/components/parameters/PathId' } ]
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                title: { type: string }
+                price_sol: { type: string }
+                price_stars: { type: integer }
+                status: { type: string, enum: [draft, published, archived] }
+      responses:
+        '200':
+          description: OK
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '409': { $ref: '#/components/responses/ConflictError' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+
+  /products/{id}/stock:
+    post:
+      tags: [products]
+      operationId: addStock
+      summary: Пополнение зашифрованного стока
+      security: [ { bearerAuth: [] } ]
+      parameters: [ { $ref: '#/components/parameters/PathId' } ]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [items]
+              properties:
+                items: { type: array, items: { type: string } }
+      responses:
+        '201':
+          description: Создано
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '409': { $ref: '#/components/responses/ConflictError' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+
+  /reviews/{id}/reply:
+    post:
+      tags: [reviews]
+      operationId: replyReview
+      summary: Ответ магазина на отзыв
+      security: [ { bearerAuth: [] } ]
+      parameters: [ { $ref: '#/components/parameters/PathId' } ]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [text]
+              properties:
+                text: { type: string }
+      responses:
+        '201':
+          description: Создано
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '409': { $ref: '#/components/responses/ConflictError' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+
+  /reviews/{id}/report:
+    post:
+      tags: [reviews]
+      operationId: reportReview
+      summary: Жалоба на отзыв
+      security: [ { bearerAuth: [] } ]
+      parameters: [ { $ref: '#/components/parameters/PathId' } ]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [reason_code, comment]
+              properties:
+                reason_code: { type: string }
+                comment: { type: string }
+      responses:
+        '201':
+          description: Создано
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '409': { $ref: '#/components/responses/ConflictError' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+
+  /shops/{id}/products:
+    get:
+      tags: [shops]
+      operationId: listProducts
+      summary: handleListProducts
+      security: []
+      parameters: [ { $ref: '#/components/parameters/PathId' } ]
+      responses:
+        '200':
+          description: OK
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+    post:
+      tags: [shops]
+      operationId: createProduct
+      summary: handleCreateProduct
+      security: [ { bearerAuth: [] } ]
+      parameters: [ { $ref: '#/components/parameters/PathId' } ]
+      responses:
+        '201':
+          description: Создано
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '409': { $ref: '#/components/responses/ConflictError' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+
+  /shops/{id}/rent:
+    get:
+      tags: [shops]
+      operationId: getRent
+      summary: handleGetRent
+      security: [ { bearerAuth: [] } ]
+      parameters: [ { $ref: '#/components/parameters/PathId' } ]
+      responses:
+        '200':
+          description: OK
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+    post:
+      tags: [shops]
+      operationId: subscribeRent
+      summary: handleSubscribeRent
+      security: [ { bearerAuth: [] } ]
+      parameters: [ { $ref: '#/components/parameters/PathId' } ]
+      responses:
+        '201':
+          description: Создано
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/TotpRequired' }
+        '409': { $ref: '#/components/responses/ConflictError' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+
+  /shops/{id}/reviews:
+    get:
+      tags: [shops]
+      operationId: listReviews
+      summary: Отзывы магазина
+      security: []
+      parameters: [ { $ref: '#/components/parameters/PathId' } ]
+      responses:
+        '200':
+          description: OK
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+
+  /shops/{id}/stats:
+    get:
+      tags: [shops]
+      operationId: shopStats
+      summary: Статистика магазина для владельца
+      security: [ { bearerAuth: [] } ]
+      parameters: [ { $ref: '#/components/parameters/PathId' } ]
+      responses:
+        '200':
+          description: OK
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+
+  /stars/invoice:
+    post:
+      tags: [gifts]
+      operationId: starsInvoice
+      summary: Создание Stars-инвойса (XTR)
+      security: [ { bearerAuth: [] } ]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [amount_stars, purpose]
+              properties:
+                amount_stars: { type: integer }
+                purpose: { type: string }
+      responses:
+        '201':
+          description: Создано
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '409': { $ref: '#/components/responses/ConflictError' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+
+  /wallet/transactions:
+    get:
+      tags: [wallet]
+      operationId: walletTx
+      summary: История проводок
+      security: [ { bearerAuth: [] } ]
+      responses:
+        '200':
+          description: OK
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT (EdDSA / Ed25519)
+
+  parameters:
+    PathId: { name: id, in: path, required: true, schema: { type: string } }
+    PathUserId: { name: userId, in: path, required: true, schema: { type: string } }
+    PathKey: { name: key, in: path, required: true, schema: { type: string } }
+
+  responses:
+    ValidationError:
+      description: Ошибка валидации
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+    Unauthorized:
+      description: Не аутентифицирован
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+    NotFound:
+      description: Не найдено (или не видно)
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+    Forbidden:
+      description: Доступ запрещён (роль, санкция, гео-блокировка GEO_BLOCKED)
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+    PayloadTooLarge:
+      description: 'Тело запроса или вложение превышает допустимый размер'
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              error:
+                type: object
+                properties:
+                  code: { type: string, enum: [PAYLOAD_TOO_LARGE, ATTACHMENT_TOO_LARGE] }
+                  message: { type: string }
+                  status: { type: integer, enum: [413] }
+                  request_id: { type: string }
+    ConflictError:
+      description: Конфликт состояния
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+    InvalidTransition:
+      description: Недопустимый переход статуса
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+    TotpRequired:
+      description: Требуется второй фактор 2FA
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+    InsufficientFunds:
+      description: Недостаточно средств
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+    StockEmpty:
+      description: Нет свободных единиц товара
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+    RateLimited:
+      description: Превышен лимит запросов
+      headers:
+        Retry-After: { schema: { type: integer } }
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+    Locked:
+      description: Аккаунт/IP временно заблокирован (анти-брутфорс)
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+
+  schemas:
+    Error:
+      type: object
+      required: [error]
+      properties:
+        error:
+          type: object
+          required: [code, message, status]
+          properties:
+            code: { type: string, example: TOTP_STEP2_REQUIRED }
+            message: { type: string }
+            status: { type: integer }
+            details: { type: object }
+            request_id: { type: string }
+
+    Asset: { type: string, enum: [SOL, STARS, USDC] }
+    TotpFactor: { type: string, enum: [login, ops] }
+
+    OrderStatus:
+      type: string
+      enum: [created, awaiting_payment, paid_escrow, processing, delivered, completed,
+             dispute_opened, in_arbitration, refunded, cancelled, expired]
+
+    AuthConfig:
+      type: object
+      properties:
+        password:
+          type: object
+          properties:
+            min_len: { type: integer, example: 12 }
+            classes: { type: integer, example: 3 }
+            algo: { type: string, example: argon2id }
+        captcha:
+          type: object
+          properties:
+            provider: { type: string, example: turnstile }
+            site_key: { type: string }
+            required_after_fails: { type: integer, example: 3 }
+        2fa:
+          type: object
+          properties:
+            factors: { type: array, items: { $ref: '#/components/schemas/TotpFactor' } }
+            period: { type: integer, example: 30 }
+            digits: { type: integer, example: 6 }
+            issuer: { type: string, example: SITEE }
+        telegram:
+          type: object
+          properties:
+            bot_username: { type: string }
+            init_data_required: { type: boolean }
+        features:
+          type: object
+          properties:
+            stars: { type: boolean }
+            sol: { type: boolean }
+            exchange: { type: boolean }
+            gifts: { type: boolean }
+
+    Country:
+      type: object
+      properties:
+        code: { type: string, example: NO }
+        name_ru: { type: string, example: Норвегия }
+        name_en: { type: string, example: Norway }
+
+    City:
+      type: object
+      properties:
+        id: { type: integer, example: 3110 }
+        country: { type: string, example: NO }
+        name_ru: { type: string, example: Саннефьорд }
+        name_en: { type: string, example: Sandefjord }
+        tz: { type: string, example: Europe/Oslo }
+
+    RegisterRequest:
+      type: object
+      required: [nickname, password, password_confirm, country_code, accept_terms, is_18plus]
+      properties:
+        email: { type: string, format: email }
+        nickname: { type: string, minLength: 3, maxLength: 24, pattern: '^[a-z0-9_]+$' }
+        password: { type: string, minLength: 12, maxLength: 128 }
+        password_confirm: { type: string }
+        country_code: { type: string, example: NO }
+        city_id: { type: integer }
+        accept_terms: { type: boolean }
+        is_18plus: { type: boolean }
+        referral_code: { type: [string, 'null'] }
+        captcha_token: { type: [string, 'null'] }
+
+    Enrollment:
+      type: object
+      properties:
+        enrollment_id: { type: string }
+        status:
+          type: string
+          enum: [pending_contact_code, pending_2fa_login, pending_2fa_ops, complete]
+        expires_at: { type: string, format: date-time }
+
+    TotpSetup:
+      type: object
+      properties:
+        factor: { $ref: '#/components/schemas/TotpFactor' }
+        secret_b32: { type: string }
+        otpauth_url: { type: string }
+        qr_svg: { type: string }
+        label: { type: string, example: 'SITEE (вход)' }
+        expires_at: { type: string, format: date-time }
+
+    LoginRequest:
+      type: object
+      required: [identifier, password]
+      properties:
+        identifier: { type: string, description: email или nickname }
+        password: { type: string }
+        captcha_token: { type: [string, 'null'] }
+        device:
+          type: object
+          properties:
+            ua: { type: string }
+            tz: { type: string }
+            fingerprint: { type: string }
+
+    LoginChallenge:
+      type: object
+      properties:
+        session_id: { type: string }
+        challenge: { type: string, enum: [totp_login, totp_ops] }
+        factor: { $ref: '#/components/schemas/TotpFactor' }
+        trusted_device: { type: boolean }
+        expires_at: { type: string, format: date-time }
+
+    AuthSession:
+      type: object
+      properties:
+        access_token: { type: string }
+        refresh_token: { type: string }
+        expires_in: { type: integer, example: 900 }
+        user: { $ref: '#/components/schemas/Me' }
+        redirect: { type: string, example: /shops }
+
+    Me:
+      type: object
+      properties:
+        id: { type: string }
+        nickname: { type: string }
+        role:
+          type: string
+          enum: [buyer, seller, shop_admin, moderator, arbiter, superadmin]
+        country: { type: string }
+        city_id: { type: integer }
+        factors:
+          type: object
+          properties:
+            login: { type: string, enum: [pending, active, revoked] }
+            ops: { type: string, enum: [pending, active, revoked] }
+        balances:
+          type: object
+          properties:
+            SOL: { type: string }
+            STARS: { type: integer }
+        unread:
+          type: object
+          properties:
+            chats: { type: integer }
+            notifications: { type: integer }
+
+    ShopCard:
+      type: object
+      properties:
+        id: { type: string }
+        slug: { type: string }
+        name: { type: string }
+        cover_url: { type: [string, 'null'] }
+        avatar_url: { type: [string, 'null'] }
+        rating: { type: number, example: 4.8 }
+        rating_count: { type: integer }
+        is_crowned: { type: boolean, description: Коронка в углу карточки (FR-SHOP-07) }
+        is_verified: { type: boolean }
+        country: { type: string }
+        city: { type: string }
+        sales_count: { type: integer }
+        response_p50_s: { type: [integer, 'null'] }
+        price_from_sol: { type: [string, 'null'] }
+        promoted: { type: boolean }
+        rent_status: { type: string, enum: [trial, active, expiring, grace, suspended, none] }
+        categories:
+          type: array
+          items:
+            type: object
+            properties:
+              id: { type: integer }
+              slug: { type: string }
+              name_ru: { type: string }
+
+    ShopPage:
+      type: object
+      properties:
+        items:
+          type: array
+          items: { $ref: '#/components/schemas/ShopCard' }
+        next_cursor: { type: [string, 'null'] }
+        has_more: { type: boolean }
+
+    ShopCreate:
+      type: object
+      required: [name, slug, description, category_ids, totp_code]
+      properties:
+        name: { type: string, minLength: 3, maxLength: 40 }
+        slug: { type: string, pattern: '^[a-z0-9-]{3,40}$' }
+        description: { type: string, maxLength: 2000 }
+        category_ids: { type: array, items: { type: integer }, minItems: 1, maxItems: 3 }
+        country_code: { type: string }
+        city_id: { type: integer }
+        tz: { type: string }
+        totp_code: { type: string, pattern: '^[0-9]{6}$' }
+
+    ShopDetail:
+      allOf:
+        - $ref: '#/components/schemas/ShopCard'
+        - type: object
+          properties:
+            description: { type: string }
+            admin:
+              type: object
+              properties:
+                nickname: { type: string }
+                is_online: { type: boolean }
+                response_p50_s: { type: integer }
+                visible_as: { type: string, example: 'Админ магазина' }
+            stats:
+              type: object
+              properties:
+                dispute_rate: { type: number }
+                positive_pct: { type: integer }
+            actions:
+              type: object
+              properties:
+                can_chat: { type: boolean }
+                can_order: { type: boolean }
+                can_gift: { type: boolean }
+            products:
+              type: array
+              items: { $ref: '#/components/schemas/Product' }
+
+    RentPlan:
+      type: object
+      properties:
+        id: { type: string }
+        code: { type: string, enum: [starter, pro, crown, enterprise] }
+        name_ru: { type: string }
+        price_sol: { type: string }
+        price_stars: { type: integer }
+        product_limit: { type: integer }
+        fee_bps: { type: integer, example: 350 }
+        feed_boost: { type: number }
+        grants_crown: { type: boolean }
+        support_sla_h: { type: integer }
+
+    RentSubscription:
+      type: object
+      properties:
+        id: { type: string }
+        shop_id: { type: string }
+        plan: { type: string }
+        status: { type: string, enum: [trial, active, expiring, grace, suspended, cancelled, expired] }
+        asset: { $ref: '#/components/schemas/Asset' }
+        price: { type: string }
+        period_start: { type: string, format: date-time }
+        period_end: { type: string, format: date-time }
+        grace_end: { type: [string, 'null'], format: date-time }
+        auto_renew: { type: boolean }
+        days_left: { type: integer }
+        is_crowned: { type: boolean }
+
+    Product:
+      type: object
+      properties:
+        id: { type: string }
+        shop_id: { type: string }
+        title: { type: string }
+        description: { type: string }
+        kind: { type: string, enum: [key, file, account, subscription, service_code, custom] }
+        price_sol: { type: string }
+        price_stars: { type: integer }
+        stock_free: { type: integer }
+        warranty_days: { type: integer }
+        delivery_sla_h: { type: integer }
+        status: { type: string, enum: [draft, moderation, published, rejected, archived] }
+        media_urls: { type: array, items: { type: string } }
+        rating: { type: number }
+
+    ProductCreate:
+      type: object
+      required: [title, kind, price_sol]
+      properties:
+        title: { type: string, maxLength: 120 }
+        description: { type: string }
+        kind: { type: string }
+        category_id: { type: integer }
+        price_sol: { type: string }
+        price_stars: { type: integer }
+        warranty_days: { type: integer }
+        delivery_sla_h: { type: integer }
+        stock_items: { type: array, items: { type: string }, description: Секреты для автовыдачи (шифруются) }
+
+    OrderCreate:
+      type: object
+      required: [shop_id, items]
+      properties:
+        shop_id: { type: string }
+        items:
+          type: array
+          minItems: 1
+          items:
+            type: object
+            required: [product_id, qty]
+            properties:
+              product_id: { type: string }
+              qty: { type: integer, minimum: 1 }
+        pay_asset: { $ref: '#/components/schemas/Asset' }
+
+    Order:
+      type: object
+      properties:
+        id: { type: string }
+        number: { type: string, example: '#A7K2-9931' }
+        status: { $ref: '#/components/schemas/OrderStatus' }
+        shop:
+          type: object
+          properties:
+            id: { type: string }
+            name: { type: string }
+        items:
+          type: array
+          items:
+            type: object
+            properties:
+              title: { type: string }
+              qty: { type: integer }
+              unit_price_sol: { type: string }
+        totals:
+          type: object
+          properties:
+            subtotal_sol: { type: string }
+            fee_sol: { type: string }
+            total_sol: { type: string }
+            asset: { $ref: '#/components/schemas/Asset' }
+        pay_deadline: { type: [string, 'null'], format: date-time }
+        confirm_deadline: { type: [string, 'null'], format: date-time }
+        delivery_kind: { type: string, enum: [auto, manual, file] }
+        status_timeline:
+          type: array
+          items:
+            type: object
+            properties:
+              status: { $ref: '#/components/schemas/OrderStatus' }
+              ts: { type: string, format: date-time }
+              actor: { type: string }
+        actions:
+          type: array
+          items: { type: string }
+          example: [confirm, extend, open_dispute, chat_with_admin]
+        chat_id: { type: [string, 'null'] }
+        dispute: { type: [object, 'null'] }
+
+    DisputeCreate:
+      type: object
+      required: [reason_code, description, totp_code]
+      properties:
+        reason_code:
+          type: string
+          enum: [not_delivered, broken, not_as_described, fraud, sla_violation, other]
+        description: { type: string, minLength: 30, maxLength: 4000 }
+        evidence:
+          type: array
+          maxItems: 10
+          items:
+            type: object
+            properties:
+              kind: { type: string, enum: [image, video, file, text] }
+              upload_id: { type: string }
+        totp_code: { type: string, pattern: '^[0-9]{6}$' }
+
+    DisputeResolve:
+      type: object
+      required: [resolution, reason, totp_code]
+      properties:
+        resolution:
+          type: string
+          enum: [complete, refund_full, refund_partial, replace, dismiss, escalate_senior, sanction]
+        amount: { type: string }
+        reason: { type: string, minLength: 100 }
+        sanction_level: { type: string, enum: [warn, restrict, suspend, ban] }
+        totp_code: { type: string, pattern: '^[0-9]{6}$' }
+
+    ShopCover:
+      type: object
+      description: 'Обложка магазина (FR-FEED-02). Если продавец не загрузил свою, сервер возвращает детерминированный SVG data-URI.'
+      properties:
+        cover_url:
+          type: string
+          description: 'URL или data:image/svg+xml — всегда заполнен'
+        accent: { type: string, example: '#6c5ce7' }
+    Dispute:
+      type: object
+      properties:
+        id: { type: string }
+        order_id: { type: string }
+        status:
+          type: string
+          enum: [open, awaiting_reply, in_arbitration, resolved, dismissed, appeal, closed]
+        chat_id: { type: string }
+        you_are: { type: string, enum: [buyer, shop_admin, arbiter] }
+        your_alias: { type: string, example: 'Покупатель #K92' }
+        counterparty_alias: { type: string, example: 'Продавец #A17' }
+        reveal: { type: boolean, description: true только для арбитра }
+        participants:
+          type: array
+          items:
+            type: object
+            properties:
+              id: { type: string }
+              visible_as: { type: string }
+              role: { type: string }
+        reply_deadline: { type: string, format: date-time }
+        resolution: { type: [string, 'null'] }
+        resolution_amount: { type: [string, 'null'] }
+        resolution_reason: { type: [string, 'null'] }
+        resolved_at: { type: string, format: date-time }
+        appeal_of: { type: [string, 'null'], description: 'спор, по которому подана апелляция' }
+        appealed_at: { type: string, format: date-time }
+        appeal_reason: { type: [string, 'null'] }
+        execution_suspended:
+          type: boolean
+          description: 'исполнение refund_* и partial приостановлено до решения апелляции'
+        actions: { type: array, items: { type: string } }
+
+    ChatListItem:
+      type: object
+      properties:
+        id: { type: string }
+        kind: { type: string, enum: [shop_support, order, dispute, group, channel, direct] }
+        title: { type: string }
+        shop: { type: [object, 'null'] }
+        admin:
+          type: object
+          properties:
+            nickname: { type: string }
+            is_online: { type: boolean }
+            visible_as: { type: string, example: 'Админ магазина' }
+        last_message:
+          type: object
+          properties:
+            preview: { type: string, example: '<encrypted>' }
+            ts: { type: string, format: date-time }
+            sender: { type: string }
+        unread: { type: integer }
+        e2ee: { type: boolean }
+        pinned: { type: boolean }
+        is_muted: { type: boolean }
+
+    ChatDetail:
+      allOf:
+        - $ref: '#/components/schemas/ChatListItem'
+        - type: object
+          properties:
+            members:
+              type: array
+              items:
+                type: object
+                properties:
+                  user_id: { type: string }
+                  visible_as: { type: string }
+                  role: { type: string }
+            messages:
+              type: array
+              items: { $ref: '#/components/schemas/Message' }
+
+    Message:
+      type: object
+      properties:
+        id: { type: string }
+        chat_id: { type: string }
+        seq: { type: integer }
+        sender_id: { type: string }
+        sender_visible_as: { type: string }
+        type: { type: string, enum: [text, attachment, product_card, order_card, gift_card, system, reply] }
+        body_ct: { type: string, description: base64 envelope AES-256-GCM (или E2EE ciphertext) }
+        body_plain: { type: [string, 'null'], description: Только для клиента-владельца ключа; сервер не заполняет в E2EE }
+        e2ee: { type: boolean }
+        sender_key_id: { type: [string, 'null'] }
+        created_at: { type: string, format: date-time }
+        edited_at: { type: [string, 'null'], format: date-time }
+
+    MessageSend:
+      type: object
+      required: [client_msg_id, type, body_ct]
+      properties:
+        client_msg_id: { type: string }
+        type: { type: string, default: text }
+        body_ct: { type: string }
+        e2ee: { type: boolean }
+        aad: { type: string }
+        reply_to: { type: [string, 'null'] }
+
+    Wallet:
+      type: object
+      properties:
+        balances:
+          type: array
+          items:
+            type: object
+            properties:
+              asset: { $ref: '#/components/schemas/Asset' }
+              available: { type: string }
+              locked: { type: string }
+        deposit:
+          type: object
+          properties:
+            asset: { $ref: '#/components/schemas/Asset' }
+            address: { type: string }
+            qr: { type: string }
+            min: { type: string }
+            confirmations_required: { type: integer }
+        limits:
+          type: object
+          properties:
+            withdraw_daily_sol: { type: string }
+            withdraw_single_sol: { type: string }
+            withdraw_whitelist_cooling_h: { type: integer }
+
+    Withdrawal:
+      type: object
+      properties:
+        id: { type: string }
+        status:
+          type: string
+          enum: [pending_2fa, pending_approval, approved, broadcast, confirmed, failed, cancelled]
+        amount: { type: string }
+        asset: { $ref: '#/components/schemas/Asset' }
+        dest_address: { type: string }
+        fee: { type: string }
+        signature: { type: [string, 'null'] }
+        eta_s: { type: integer }
+
+    Quote:
+      type: object
+      properties:
+        quote_id: { type: string }
+        rate: { type: string }
+        fee_bps: { type: integer }
+        from_amount: { type: string }
+        to_amount: { type: string }
+        valid_until: { type: string, format: date-time }
+
+    ExchangeOrder:
+      type: object
+      properties:
+        order_id: { type: string }
+        status: { type: string, enum: [filled, failed, cancelled] }
+        from: { type: string }
+        to: { type: string }
+        tx_id: { type: string }
+
+    Gift:
+      type: object
+      properties:
+        id: { type: string }
+        sku: { type: string }
+        title_ru: { type: string }
+        description: { type: string }
+        rarity: { type: string, enum: [common, rare, epic, legendary] }
+        media_url: { type: [string, 'null'] }
+        media_kind: { type: [string, 'null'], enum: [image, video, lottie, sticker, null] }
+        price_stars: { type: integer }
+        price_sol: { type: string }
+        boosts_shop: { type: boolean }
+        boost_days: { type: integer }
+        per_user_limit: { type: [integer, 'null'] }
+        status: { type: string, enum: [draft, published, archived] }
+
+    GiftAdmin:
+      type: object
+      required: [sku, title_ru, rarity, totp_code]
+      properties:
+        sku: { type: string }
+        title_ru: { type: string }
+        title_en: { type: string }
+        description: { type: string }
+        rarity: { type: string, enum: [common, rare, epic, legendary] }
+        media_b64: { type: string }
+        media_kind: { type: string, enum: [image, video, lottie, sticker] }
+        price_stars: { type: integer }
+        price_sol: { type: string }
+        per_user_limit: { type: integer }
+        boosts_shop: { type: boolean }
+        boost_value: { type: number }
+        boost_days: { type: integer }
+        collectible: { type: boolean }
+        starts_at: { type: [string, 'null'], format: date-time }
+        ends_at: { type: [string, 'null'], format: date-time }
+        status: { type: string, enum: [draft, published, archived] }
+        sort: { type: integer }
+        totp_code: { type: string, pattern: '^[0-9]{6}$' }
+
+    GiftBuy:
+      type: object
+      required: [asset, recipient_type]
+      properties:
+        asset: { $ref: '#/components/schemas/Asset' }
+        recipient_type: { type: string, enum: [self, user, shop] }
+        recipient_id: { type: [string, 'null'] }
+        message: { type: string, maxLength: 200 }
+        totp_code: { type: string }
+
+    GiftPurchase:
+      type: object
+      properties:
+        purchase_id: { type: string }
+        status: { type: string, enum: [pending, paid, refunded, revoked] }
+        charged:
+          type: object
+          properties:
+            asset: { $ref: '#/components/schemas/Asset' }
+            amount: { type: string }
+        boost:
+          type: object
+          properties:
+            shop_id: { type: string }
+            until: { type: string, format: date-time }
+            value: { type: number }
+        gift: { $ref: '#/components/schemas/Gift' }
+
+    ReviewCreate:
+      type: object
+      required: [rating]
+      properties:
+        rating: { type: integer, minimum: 1, maximum: 5 }
+        rating_delivery: { type: integer, minimum: 1, maximum: 5 }
+        rating_description: { type: integer, minimum: 1, maximum: 5 }
+        rating_support: { type: integer, minimum: 1, maximum: 5 }
+        body: { type: string, maxLength: 1000 }
+        media: { type: array, items: { type: string }, maxItems: 3 }
+
+    Review:
+      type: object
+      properties:
+        id: { type: string }
+        shop_id: { type: string }
+        author: { type: string, description: Псевдоним автора }
+        rating: { type: integer }
+        body: { type: string }
+        is_verified_purchase: { type: boolean }
+        shop_reply: { type: [string, 'null'] }
+        helpful_count: { type: integer }
+        created_at: { type: string, format: date-time }
+
+    AdminDashboard:
+      type: object
+      properties:
+        gmv_sol: { type: string }
+        gmv_stars: { type: integer }
+        fees_sol: { type: string }
+        users_total: { type: integer }
+        users_new_24h: { type: integer }
+        shops_active: { type: integer }
+        rents_active: { type: integer }
+        rents_mrr_sol: { type: string }
+        disputes_open: { type: integer }
+        disputes_sla_breach: { type: integer }
+        orders_24h: { type: integer }
+        security_incidents_24h: { type: integer }
+        ledger_ok: { type: boolean }

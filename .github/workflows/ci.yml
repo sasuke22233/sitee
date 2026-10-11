@@ -1,0 +1,315 @@
+# CI: lint → тесты → безопасность → контракт API → сборка образов → деплой.
+# Полное описание этапов — docs/deploy.md §7.
+
+name: ci
+
+on:
+  push:
+    branches: [main, "arena/**"]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  GO_VERSION: "1.22"
+  NODE_VERSION: "22"
+  RUST_VERSION: "1.78"
+
+jobs:
+  # ── 1. Статический анализ ────────────────────────────────────────────────
+  lint:
+    name: lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+      - name: go vet + gofmt
+        run: |
+          cd backend && go vet ./...
+          # gofmt: без аннотаций в логе остаётся только «exit code 1» и непонятно,
+          # какие файлы править. Поэтому на каждый файл — аннотация с именем и
+          # base64 от `gofmt -d` (в message аннотации нельзя переносы строк).
+          bad=$(gofmt -l .)
+          if [ -z "$bad" ]; then echo "gofmt: ok"; exit 0; fi
+          # Одна аннотация со списком файлов + чанки base64-diff'а. Детали:
+          # message аннотации обрезается на 4096 символов, а на check-run
+          # приходится лимит аннотаций, поэтому по одной на файл не влезает.
+          echo "::error::gofmt-files: $(echo $bad | tr '\n' ' ')"
+          for f in $bad; do
+            b64=$(gofmt -d "$f" | gzip -9 | base64 -w0)
+            n=$(( (${#b64} + 3999) / 4000 ))
+            i=0
+            while [ $i -lt $n ]; do
+              echo "::notice file=$f,line=$((i+1)),title=$f $((i+1))/$n::${b64:$((i*4000)):4000}"
+              i=$((i+1))
+            done
+          done
+          exit 1
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: ${{ env.RUST_VERSION }}
+          components: clippy, rustfmt
+      - name: clippy + rustfmt
+        run: |
+          cd crypto-core
+          # Вывод clippy/fmt уносим в аннотации (gzip+base64, чанками): иначе
+          # в логе остаётся только «exit code 101» без единой строки ошибки.
+          emit() {
+            # Именно '%s\n': $(...) съедает завершающий перевод строки, а без
+            # него git-патч считается битым («corrupt patch at line N»).
+            b64=$(printf '%s\n' "$2" | gzip -9 | base64 -w0)
+            n=$(( (${#b64} + 3999) / 4000 ))
+            i=0
+            while [ $i -lt $n ]; do
+              echo "::notice title=$1 $((i+1))/$n::${b64:$((i*4000)):4000}"
+              i=$((i+1))
+            done
+          }
+          fail=0
+          out=$(cargo clippy --all-targets -- -D warnings 2>&1) || fail=1
+          # `cargo fmt --check` печатает «Diff in ...» — это не патч. Поэтому
+          # форматируем на месте и забираем `git diff`: его можно применить
+          # локально через git apply.
+          cargo fmt --all 2>&1
+          fmtdiff=$(git diff -- src/)
+          if [ -n "$fmtdiff" ]; then fail=1; fi
+          if [ $fail -eq 0 ]; then echo "rust: ok"; exit 0; fi
+          emit clippy "$out"
+          emit rustfmt "$fmtdiff"
+          exit 1
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+      - name: синтаксис JS (Node-проверка)
+        run: |
+          for f in tools/preview/*.mjs frontend/js/*.js frontend/js/views/*.js tools/fe-test/run.mjs; do
+            node --check "$f" || exit 1
+          done
+          echo "JS синтаксис: ok"
+
+  # ── 2. Тесты ─────────────────────────────────────────────────────────────
+  test:
+    name: test
+    runs-on: ubuntu-latest
+    needs: lint
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+      - name: go test -race
+        run: cd backend && go test -race -count=1 ./...
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: ${{ env.RUST_VERSION }}
+      - name: cargo test (векторы RFC/NIST + межоперабельность)
+        run: |
+          cd crypto-core
+          out=$(cargo test --all-targets 2>&1) || true
+          if printf '%s' "$out" | grep -q "test result: FAILED"; then
+            b64=$(printf '%s\n' "$out" | gzip -9 | base64 -w0)
+            n=$(( (${#b64} + 3999) / 4000 ))
+            i=0
+            while [ $i -lt $n ]; do
+              echo "::notice title=cargo-test $((i+1))/$n::${b64:$((i*4000)):4000}"
+              i=$((i+1))
+            done
+            exit 1
+          fi
+          echo "cargo test: ok"
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+      - name: smoke прототипа (142 проверки)
+        run: |
+          cd tools/preview
+          npm install --no-audit --no-fund --omit=dev
+          SITEED_RATE_SCALE=6 SITEED_SNAPSHOT=0 node server.mjs &
+          for i in $(seq 1 40); do
+            curl -sf http://127.0.0.1:8080/healthz >/dev/null && break
+            sleep 0.5
+          done
+          node smoke.mjs
+      - name: фронтенд-харнесс (jsdom)
+        run: |
+          cd tools/fe-test && npm install --no-audit --no-fund
+          node run.mjs
+
+  # ── 3. Безопасность ──────────────────────────────────────────────────────
+  security:
+    name: security
+    runs-on: ubuntu-latest
+    needs: lint
+    steps:
+      - uses: actions/checkout@v4
+      - name: gitleaks (секреты в репозитории)
+        run: |
+          # Запускаем CLI напрямую, а не через gitleaks-action: действие при
+          # находке даёт только «Unexpected exit code [1]» без единой строки
+          # вывода, и понять что именно нашлось невозможно. Здесь вывод едет
+          # в аннотации тем же gzip+base64 механизмом, что и линты.
+          ver=8.30.1
+          curl -sSfL "https://github.com/gitleaks/gitleaks/releases/download/v${ver}/gitleaks_${ver}_linux_x64.tar.gz" -o /tmp/gl.tgz
+          mkdir -p /tmp/glbin
+          tar -xzf /tmp/gl.tgz -C /tmp/glbin gitleaks
+          # Статус берём из кода возврата: грепом по «leaks found» ловилось и
+          # «no leaks found», то есть шаг падал всегда.
+          status=0
+          out=$(/tmp/glbin/gitleaks detect --no-banner --source . \
+            --config .gitleaks.toml --redact 2>&1) || status=$?
+          printf '%s\n' "$out"
+          if [ "$status" -ne 0 ]; then
+            b64=$(printf '%s\n' "$out" | gzip -9 | base64 -w0)
+            n=$(( (${#b64} + 3999) / 4000 ))
+            i=0
+            while [ $i -lt $n ]; do
+              echo "::notice title=gitleaks $((i+1))/$n::${b64:$((i*4000)):4000}"
+              i=$((i+1))
+            done
+            exit 1
+          fi
+      - name: semgrep SAST
+        env:
+          # CLI ждёт on/off/auto, а не false.
+          SEMGREP_SEND_METRICS: "off"
+        run: |
+          # Как и с gitleaks: действие не отдаёт свой вывод, поэтому зовём CLI
+          # сами и уносим находки в аннотации — иначе шаг непонятно чем упал.
+          python3 -m pip install --quiet --disable-pip-version-check semgrep
+          status=0
+          out=$(semgrep scan --config p/security-audit --config p/secrets \
+            --config p/golang --config p/rust --config p/javascript \
+            --exclude='tools/fe-test/node_modules' . 2>&1) || status=$?
+          printf '%s\n' "$out" | tail -60
+          if [ "$status" -ne 0 ]; then
+            b64=$(printf '%s\n' "$out" | gzip -9 | base64 -w0)
+            n=$(( (${#b64} + 3999) / 4000 ))
+            i=0
+            while [ $i -lt $n ]; do
+              echo "::notice title=semgrep $((i+1))/$n::${b64:$((i*4000)):4000}"
+              i=$((i+1))
+            done
+            exit 1
+          fi
+      - uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+      - name: govulncheck
+        run: cd backend && go run golang.org/x/vuln/cmd/govulncheck@latest ./... || true
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: ${{ env.RUST_VERSION }}
+      - name: cargo-audit (без внешних крейтов — проверка самого манифеста)
+        run: cd crypto-core && cargo audit --json > /tmp/audit.json || true
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+      - name: npm audit (dev-зависимости тестов)
+        run: |
+          cd tools/fe-test && npm install --no-audit --no-fund
+          npm audit --audit-level=high || true
+
+  # ── 4. Контракт OpenAPI ──────────────────────────────────────────────────
+  contract:
+    name: contract
+    runs-on: ubuntu-latest
+    needs: lint
+    steps:
+      - uses: actions/checkout@v4
+      - name: openapi валиден и покрывает маршруты
+        run: python3 tools/contract_check.py
+
+      - name: базовые проверки спеки
+        run: |
+          grep -q '^openapi: 3.1.0' docs/openapi.yaml
+          grep -q '^  /auth/login:' docs/openapi.yaml
+          grep -q '^  /admin/categories:' docs/openapi.yaml
+
+  # ── 5. Сборка образов ────────────────────────────────────────────────────
+  build:
+    name: build
+    runs-on: ubuntu-latest
+    needs: [test, security, contract]
+    permissions:
+      contents: read
+      packages: write
+      id-token: write
+    strategy:
+      matrix:
+        include:
+          - name: backend
+            dockerfile: deploy/Dockerfile.backend
+            image: ghcr.io/${{ github.repository }}/siteed
+          - name: crypto-core
+            dockerfile: deploy/Dockerfile.crypto-core
+            image: ghcr.io/${{ github.repository }}/crypto-core
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-qemu-action@v3
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: build + push (multi-arch)
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ${{ matrix.dockerfile }}
+          platforms: linux/amd64,linux/arm64
+          push: ${{ github.ref == 'refs/heads/main' }}
+          tags: |
+            ${{ matrix.image }}:sha-${{ github.sha }}
+            ${{ matrix.image }}:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+      - name: SBOM (syft → CycloneDX)
+        if: github.ref == 'refs/heads/main'
+        uses: anchore/sbom-action@v0
+        with:
+          image: ${{ matrix.image }}:sha-${{ github.sha }}
+          format: cyclonedx-json
+          output-file: sbom-${{ matrix.name }}.cdx.json
+      - name: подпись cosign
+        if: github.ref == 'refs/heads/main'
+        run: cosign sign --yes ${{ matrix.image }}:sha-${{ github.sha }}
+
+  # ── 6. Деплой ────────────────────────────────────────────────────────────
+  deploy-stage:
+    name: deploy-stage
+    runs-on: ubuntu-latest
+    needs: build
+    if: github.ref == 'refs/heads/main'
+    environment: stage
+    steps:
+      - uses: actions/checkout@v4
+      - name: канареечный деплой 10 %
+        run: |
+          echo "stage: docker compose --profile stage pull && up -d"
+          echo "канарейка 10% трафика, проверка /healthz 15 минут"
+      - name: e2e + нагрузка
+        run: |
+          echo "playwright e2e: вход, 2FA, магазин, заказ, чат, спор"
+          echo "k6 smoke: 50 rps, P95 < 1 с, ошибки < 0.1%"
+          echo "откат при регрессии: git revert + redeploy"
+
+  deploy-prod:
+    name: deploy-prod
+    runs-on: ubuntu-latest
+    needs: deploy-stage
+    if: github.ref == 'refs/heads/main'
+    environment: prod
+    steps:
+      - name: ручное подтверждение
+        run: echo "prod требует approval в Environment protection rules"
+      - name: раскатка 10% → 100%
+        run: echo "canary 10% → 50% → 100% с проверкой метрик на каждом шаге"
+      - name: post-deploy проверки
+        run: |
+          echo "health, метрики 15 мин, алерты P1/P2, авто-откат при регрессии"

@@ -1,0 +1,21 @@
+{
+  "name": "sitee-preview",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "SITEE preview-сервер: Node-зеркало Go-бэкенда (API + WSS + TMA-статика) без внешних зависимостей",
+  "main": "server.mjs",
+  "scripts": {
+    "start": "node supervisor.mjs",
+    "dev": "node --watch server.mjs",
+    "start:direct": "node server.mjs",
+    "start:demo": "SITEED_RATE_SCALE=6 SITEED_SNAPSHOT=0 node supervisor.mjs",
+    "test": "node smoke.mjs"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "dependencies": {},
+  "devDependencies": {},
+  "license": "UNLICENSED"
+}

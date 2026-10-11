@@ -1,0 +1,25 @@
+[package]
+name = "sitee-crypto-core"
+version = "0.1.0"
+edition = "2021"
+description = "SITEE crypto core: AES-256-GCM, HKDF-SHA256, PBKDF2, TOTP, blind index, Solana ed25519 signing, anti-fraud and rate-limit engine. Std-only, no external crates."
+license = "UNLICENSED"
+publish = false
+
+[lib]
+name = "sitee_crypto_core"
+path = "src/lib.rs"
+
+# Сервис, к которому обращается Go-бэкенд (CRYPTO_CORE_URL).
+[[bin]]
+name = "crypto-core"
+path = "src/main.rs"
+
+# Внешних зависимостей намеренно нет: ядро собирается одним rustc и работает
+# в любом окружении (включая микросервис в контейнере без сети).
+[dependencies]
+
+[profile.release]
+opt-level = 3
+lto = true
+panic = "abort"
