@@ -175,7 +175,7 @@ fn fe_pow(a: &Fe, e: &Fe) -> Fe {
 
 /// Обращение по малой теореме Ферма: a^(p-2).
 fn fe_inv(a: &Fe) -> Fe {
-    fe_pow(a, &P_MINUS_2)
+    fe_pow(a, &PM2)
 }
 
 /// Квадратный корень (p ≡ 5 mod 8): x = u·v³·(u·v⁷)^((p-5)/8).
@@ -184,7 +184,7 @@ fn fe_sqrt_ratio(u: &Fe, v: &Fe) -> Option<Fe> {
     let v7 = fe_mul(&fe_sqr(&v3), v);
     let mut x = fe_mul(&fe_mul(u, &v3), &fe_pow(&fe_mul(u, &v7), &EXPSQRT));
     if !fe_eq(&fe_mul(&fe_sqr(&x), v), u) {
-        x = fe_mul(&x, &SQRT_M1);
+        x = fe_mul(&x, &SQRTM1);
     }
     if fe_eq(&fe_mul(&fe_sqr(&x), v), u) {
         Some(x)
@@ -211,7 +211,7 @@ fn fe_cmp(a: &Fe, b: &Fe) -> std::cmp::Ordering {
 fn point_add(p: &Point, q: &Point) -> Point {
     let a = fe_mul(&fe_sub(&p.y, &p.x), &fe_sub(&q.y, &q.x));
     let b = fe_mul(&fe_add(&p.y, &p.x), &fe_add(&q.y, &q.x));
-    let c = fe_mul(&fe_mul(&TWO_D, &p.t), &q.t);
+    let c = fe_mul(&fe_mul(&TWOD, &p.t), &q.t);
     let d = fe_mul(&fe_mul(&fe_from_u64(2), &p.z), &q.z);
     let e = fe_sub(&b, &a);
     let f = fe_sub(&d, &c);
@@ -561,7 +561,7 @@ mod tests {
     fn sign_and_verify_roundtrip() {
         let seed = [0x42u8; 32];
         let kp = keypair_from_seed(&seed);
-        let msg = b"sitee: перевод в эскроу";
+        let msg = "sitee: перевод в эскроу".as_bytes();
         let sig = sign(&seed, msg);
         assert!(verify(kp.public_key(), msg, &sig));
         // Подделка подписи
@@ -569,7 +569,7 @@ mod tests {
         broken[10] ^= 1;
         assert!(!verify(kp.public_key(), msg, &broken));
         // Подделка сообщения
-        assert!(!verify(kp.public_key(), b"sitee: другой перевод", &sig));
+        assert!(!verify(kp.public_key(), "sitee: другой перевод".as_bytes(), &sig));
     }
 
     #[test]

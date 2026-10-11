@@ -82,10 +82,14 @@ pub fn audit_hash(r: &AuditRecord<'_>) -> String {
 /// Проверка цепочки: каждая запись ссылается на хеш предыдущей.
 pub fn verify_chain(records: &[AuditRecord<'_>]) -> bool {
     for (i, r) in records.iter().enumerate() {
+        // Хеш предыдущей записи должен жить дольше заимствования, поэтому
+        // держим его в переменной внешней области видимости.
+        let mut prev_hash = String::new();
         let expected_prev = if i == 0 {
             None
         } else {
-            Some(audit_hash(&records[i - 1]).as_str())
+            prev_hash = audit_hash(&records[i - 1]);
+            Some(prev_hash.as_str())
         };
         let prev = r.prev_hash;
         if prev != expected_prev {

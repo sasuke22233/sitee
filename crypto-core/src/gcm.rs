@@ -7,7 +7,7 @@
 use crate::aes256::{encrypt_block, key_expansion, ROUND_KEYS};
 use crate::{timing_safe_equal, Error, Result};
 
-const MASK: u128 = (1u128 << 128) - 1;
+const MASK: u128 = u128::MAX;
 /// Многочлен редукции GF(2^128): x^128 + x^7 + x^2 + x + 1.
 const R: u128 = 0xe100_0000_0000_0000_0000_0000_0000_0000;
 
@@ -180,7 +180,7 @@ mod tests {
     fn roundtrip_and_tamper() {
         let key = [7u8; 32];
         let iv = [3u8; 12];
-        let pt = b"sitee: секретное сообщение чата";
+        let pt = "sitee: секретное сообщение чата".as_bytes();
         let aad = b"msg:ord_1";
         let blob = aes256_gcm_encrypt(&key, &iv, pt, aad).unwrap();
         assert_eq!(aes256_gcm_decrypt(&key, &iv, &blob, aad).unwrap().as_slice(), pt);

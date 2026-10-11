@@ -13,7 +13,7 @@ use crate::{to_hex, Error, Result, TOTP_DIGITS, TOTP_PERIOD};
 const B32: &[u8; 32] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZ234567";
 
 /// Алфавит резервных кодов: без похожих glyph (0/O, 1/I/L).
-const BACKUP_ALPHABET: &[u8; 32] = b"ABCDEFGHJKMNPQRSTUVWXYZ23456789";
+const BACKUP_ALPHABET: &[u8; 31] = b"ABCDEFGHJKMNPQRSTUVWXYZ23456789";
 
 /// Длина резервного кода.
 pub const BACKUP_CODE_LEN: usize = 10;
@@ -38,7 +38,7 @@ pub fn secret_base32(buf: &[u8]) -> String {
 }
 
 /// Декодирование base32 (пробелы и `=` игнорируются).
-pub fn decode_base32(s: &str) -> Result<Vec<u8>, Error> {
+pub fn decode_base32(s: &str) -> Result<Vec<u8>> {
     let clean: String = s
         .chars()
         .filter(|c| !c.is_whitespace() && *c != '=')
