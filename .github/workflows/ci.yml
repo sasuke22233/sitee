@@ -175,7 +175,8 @@ jobs:
           fi
       - name: semgrep SAST
         env:
-          SEMGREP_SEND_METRICS: "false"
+          # CLI ждёт on/off/auto, а не false.
+          SEMGREP_SEND_METRICS: "off"
         run: |
           # Как и с gitleaks: действие не отдаёт свой вывод, поэтому зовём CLI
           # сами и уносим находки в аннотации — иначе шаг непонятно чем упал.
