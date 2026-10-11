@@ -151,9 +151,9 @@ pub fn base58_encode(data: &[u8]) -> String {
     let mut digits: Vec<u8> = Vec::with_capacity(data.len() * 138 / 100 + 1);
     while start < buf.len() {
         let mut rem: u32 = 0;
-        for i in start..buf.len() {
-            let cur = ((rem as u32) << 8) | buf[i] as u32;
-            buf[i] = (cur / 58) as u8;
+        for slot in &mut buf[start..] {
+            let cur = (rem << 8) | *slot as u32;
+            *slot = (cur / 58) as u8;
             rem = cur % 58;
         }
         digits.push(rem as u8);
@@ -246,6 +246,32 @@ pub fn build_transfer_message(
     compact_u16(data.len() as u16, &mut msg);
     msg.extend_from_slice(&data);
     msg
+}
+
+
+/// base58-декодирование (нужно тестам и проверке входящих адресов).
+pub fn base58_decode(s: &str) -> Result<Vec<u8>> {
+    let mut num: Vec<u8> = vec![0];
+    for ch in s.bytes() {
+        let idx = match B58.iter().position(|&b| b == ch) {
+            Some(i) => i,
+            None => return Err(Error::Base64("не base58 символ".into())),
+        };
+        let mut carry = idx as u32;
+        for byte in num.iter_mut() {
+            let cur = (*byte as u32) * 58 + carry;
+            *byte = (cur & 0xff) as u8;
+            carry = cur >> 8;
+        }
+        while carry > 0 {
+            num.push((carry & 0xff) as u8);
+            carry >>= 8;
+        }
+    }
+    let zeros = s.bytes().take_while(|&b| b == b'1').count();
+    let mut out = vec![0u8; zeros];
+    out.extend(num.iter().rev());
+    Ok(out)
 }
 
 #[cfg(test)]
@@ -353,29 +379,4 @@ mod tests {
         let sig = base58_decode(&sig_b58).unwrap();
         assert!(ed25519::verify(&acc.public_key, &msg, &sig));
     }
-}
-
-/// base58-декодирование (нужно тестам и проверке входящих адресов).
-pub fn base58_decode(s: &str) -> Result<Vec<u8>> {
-    let mut num: Vec<u8> = vec![0];
-    for ch in s.bytes() {
-        let idx = match B58.iter().position(|&b| b == ch) {
-            Some(i) => i,
-            None => return Err(Error::Base64("не base58 символ".into())),
-        };
-        let mut carry = idx as u32;
-        for byte in num.iter_mut() {
-            let cur = (*byte as u32) * 58 + carry;
-            *byte = (cur & 0xff) as u8;
-            carry = cur >> 8;
-        }
-        while carry > 0 {
-            num.push((carry & 0xff) as u8);
-            carry >>= 8;
-        }
-    }
-    let zeros = s.bytes().take_while(|&b| b == b'1').count();
-    let mut out = vec![0u8; zeros];
-    out.extend(num.iter().rev());
-    Ok(out)
 }

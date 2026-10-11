@@ -61,13 +61,18 @@ impl Value {
         }
     }
 
-    /// Сериализация.
-    pub fn to_string(&self) -> String {
+}
+
+impl std::fmt::Display for Value {
+    /// Сериализация в компактный JSON.
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let mut out = String::new();
         self.write(&mut out);
-        out
+        f.write_str(&out)
     }
+}
 
+impl Value {
     fn write(&self, out: &mut String) {
         match self {
             Value::Null => out.push_str("null"),

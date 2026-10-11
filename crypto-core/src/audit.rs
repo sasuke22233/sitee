@@ -84,7 +84,7 @@ pub fn verify_chain(records: &[AuditRecord<'_>]) -> bool {
     for (i, r) in records.iter().enumerate() {
         // Хеш предыдущей записи должен жить дольше заимствования, поэтому
         // держим его в переменной внешней области видимости.
-        let mut prev_hash = String::new();
+        let prev_hash;
         let expected_prev = if i == 0 {
             None
         } else {

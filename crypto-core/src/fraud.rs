@@ -161,8 +161,10 @@ mod tests {
 
     #[test]
     fn login_fails_capped() {
-        let mut s = Signals::default();
-        s.login_fails = 100;
+        let s = Signals {
+            login_fails: 100,
+            ..Default::default()
+        };
         let r = score(&s);
         assert_eq!(r.score, 240);
         assert_eq!(r.action, "delay");

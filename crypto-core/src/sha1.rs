@@ -97,6 +97,9 @@ fn compress(state: &mut [u32; 5], block: &[u8]) {
     let mut c = state[2];
     let mut d = state[3];
     let mut e = state[4];
+    // i выбирает раундовую функцию и одновременно индексирует w — это
+    // определение SHA-1, а не обход slices.
+    #[allow(clippy::needless_range_loop)]
     for i in 0..80 {
         let (f, k): (u32, u32) = if i < 20 {
             ((b & c) | ((!b) & d), 0x5a827999)

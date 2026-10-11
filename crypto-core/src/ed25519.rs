@@ -93,6 +93,10 @@ fn reduce512(t: &[u64; 8]) -> Fe {
     lo
 }
 
+// Индексы i/j здесь — часть алгоритма schoolbook-умножения (t[i+j]), поэтому
+// переписывать range-циклы в итераторы нельзя: clippy это предлагает, но
+// смысл индекса — позиция в 512-битном произведении, а не обход slices.
+#[allow(clippy::needless_range_loop)]
 fn fe_mul(a: &Fe, b: &Fe) -> Fe {
     let mut t = [0u64; 8];
     for i in 0..4 {
@@ -410,6 +414,7 @@ fn limbs8(b: &[u8; 64]) -> [u64; 8] {
 }
 
 /// Школьное умножение двух 256-битных чисел: результат 512 бит.
+#[allow(clippy::needless_range_loop)]
 fn mul_wide(a: &Fe, b: &Fe) -> [u64; 8] {
     let mut t = [0u64; 8];
     for i in 0..4 {
