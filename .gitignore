@@ -18,3 +18,6 @@ node_modules/
 # archives
 *.tar.gz
 *.zip
+
+# Копии архивов для прямой ссылки /downloads из превью — в git не нужны
+frontend/downloads/

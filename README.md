@@ -85,6 +85,11 @@ cd tools/preview && npm start                        # http://0.0.0.0:8080
 | Админ магазина (владелец шопa) | `shop@sitee.dev` | `Shop#2026` | — |
 | Админ платформы / арбитр | `admin@sitee.dev` | `Admin#2026` | — |
 
+Скачать весь проект архивом (ветка `main`):
+
+* <https://github.com/sasuke22233/sitee/archive/refs/heads/main.zip>
+* <https://github.com/sasuke22233/sitee/archive/refs/heads/main.tar.gz>
+
 Вариант B — полный прод-стенд: `deploy/docker-compose.yml` (Go-бэкенд + Rust crypto-core +
 PostgreSQL + Redis + MinIO + nginx). См. `docs/deploy.md`.
 
