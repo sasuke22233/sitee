@@ -276,9 +276,40 @@ jobs:
           image: ${{ matrix.image }}:sha-${{ github.sha }}
           format: cyclonedx-json
           output-file: sbom-${{ matrix.name }}.cdx.json
-      - name: подпись cosign
+      - name: подпись cosign (keyless Sigstore)
         if: github.ref == 'refs/heads/main'
-        run: cosign sign --yes ${{ matrix.image }}:sha-${{ github.sha }}
+        env:
+          # Ключа в секретах нет — подписываем OIDC-токеном вендора, подпись
+          # уходит в прозрачный лог Rekor и проверяема кем угодно.
+          COSIGN_YES: "true"
+        run: |
+          # Вывод уносим в аннотации: без этого падение шага молчаливое,
+          # а починить нечего, если непонятно чем оно кончилось.
+          emit() {
+            local name="$1" out="$2" b64 n i
+            b64=$(printf '%s\n' "$out" | gzip -9 | base64 -w0)
+            n=$(( (${#b64} + 3999) / 4000 ))
+            i=0
+            while [ $i -lt $n ]; do
+              echo "::notice title=$name $((i+1))/$n::${b64:$((i*4000)):4000}"
+              i=$((i+1))
+            done
+          }
+          if ! command -v cosign >/dev/null 2>&1; then
+            echo "cosign не предустановлен — беру из релиза"
+            curl -fsSL -o /tmp/cosign \
+              https://github.com/sigstore/cosign/releases/latest/download/cosign-linux-amd64
+            chmod +x /tmp/cosign
+            sudo mv /tmp/cosign /usr/local/bin/cosign
+          fi
+          emit "cosign-version" "$(cosign version 2>&1)"
+          status=0
+          out=$(cosign sign "${{ matrix.image }}:sha-${{ github.sha }}" 2>&1) || status=$?
+          emit "cosign-sign" "$out"
+          if [ "$status" -ne 0 ]; then
+            echo "::error::cosign sign завершился кодом $status"
+            exit 1
+          fi
 
   # ── 6. Деплой ────────────────────────────────────────────────────────────
   deploy-stage:
