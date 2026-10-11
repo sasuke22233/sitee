@@ -54,11 +54,27 @@ jobs:
         with:
           toolchain: ${{ env.RUST_VERSION }}
           components: clippy, rustfmt
-      - name: clippy (без предупреждений)
+      - name: clippy + rustfmt
         run: |
           cd crypto-core
-          cargo clippy --all-targets -- -D warnings
-          cargo fmt --check
+          # Вывод clippy/fmt уносим в аннотации (gzip+base64, чанками): иначе
+          # в логе остаётся только «exit code 101» без единой строки ошибки.
+          emit() {
+            b64=$(printf '%s' "$2" | gzip -9 | base64 -w0)
+            n=$(( (${#b64} + 3999) / 4000 ))
+            i=0
+            while [ $i -lt $n ]; do
+              echo "::notice title=$1 $((i+1))/$n::${b64:$((i*4000)):4000}"
+              i=$((i+1))
+            done
+          }
+          fail=0
+          out=$(cargo clippy --all-targets -- -D warnings 2>&1) || fail=1
+          fmt=$(cargo fmt --check 2>&1) || fail=1
+          if [ $fail -eq 0 ]; then echo "rust: ok"; exit 0; fi
+          emit clippy "$out"
+          emit rustfmt "$fmt"
+          exit 1
       - uses: actions/setup-node@v4
         with:
           node-version: ${{ env.NODE_VERSION }}
