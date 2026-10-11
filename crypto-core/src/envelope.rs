@@ -156,8 +156,15 @@ mod tests {
             );
             // Другой объект — отказ (AAD привязан к object_id).
             assert!(core.try_decrypt(domain, "obj_2", &blob).is_none());
-            // Чужой домен — отказ по key_id.
-            assert!(core.try_decrypt("wallet", "obj_1", &blob).is_none());
+            // Чужой домен — отказ по key_id. Домен выбираем гарантированно
+            // другим: с фиксированным "wallet" проверка ломалась ровно на той
+            // итерации, где domain == "wallet" (это не чужой домен).
+            let other = DOMAINS
+                .iter()
+                .find(|d| **d != *domain)
+                .copied()
+                .expect("доменов больше одного");
+            assert!(core.try_decrypt(other, "obj_1", &blob).is_none());
         }
     }
 

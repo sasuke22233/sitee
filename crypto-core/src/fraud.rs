@@ -170,6 +170,9 @@ mod tests {
         };
         let r = score(&s);
         assert_eq!(r.score, 240);
-        assert_eq!(r.action, "delay");
+        // Потолок от логинов — 240, а «delay» начинается с 250, поэтому действие
+        // captcha. Так же считает Go (antifraud.go: min(LoginFails*40, 240)),
+        // то есть это поведение, а не расхождение реализаций.
+        assert_eq!(r.action, "captcha");
     }
 }
