@@ -41,7 +41,7 @@ jobs:
           # приходится лимит аннотаций, поэтому по одной на файл не влезает.
           echo "::error::gofmt-files: $(echo $bad | tr '\n' ' ')"
           for f in $bad; do
-            b64=$(gofmt -d "$f" | base64 -w0)
+            b64=$(gofmt -d "$f" | gzip -9 | base64 -w0)
             n=$(( (${#b64} + 3999) / 4000 ))
             i=0
             while [ $i -lt $n ]; do
