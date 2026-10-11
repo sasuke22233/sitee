@@ -2,9 +2,9 @@ package api
 
 import (
 	"crypto/hmac"
-	"encoding/json"
 	"crypto/sha256"
 	"encoding/hex"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
@@ -81,17 +81,17 @@ func (s *Server) handleCategories(w http.ResponseWriter, r *http.Request) {
 // ---------------------------------------------------------------------------
 
 type registerRequest struct {
-	Email          string `json:"email"`
-	Nickname       string `json:"nickname"`
-	Password       string `json:"password"`
+	Email           string `json:"email"`
+	Nickname        string `json:"nickname"`
+	Password        string `json:"password"`
 	PasswordConfirm string `json:"password_confirm"`
-	CountryCode    string `json:"country_code"`
-	CityID         int64  `json:"city_id"`
-	AcceptTerms    bool   `json:"accept_terms"`
-	Is18Plus       bool   `json:"is_18plus"`
-	ReferralCode   string `json:"referral_code"`
-	CaptchaToken   string `json:"captcha_token"`
-	Locale         string `json:"locale"`
+	CountryCode     string `json:"country_code"`
+	CityID          int64  `json:"city_id"`
+	AcceptTerms     bool   `json:"accept_terms"`
+	Is18Plus        bool   `json:"is_18plus"`
+	ReferralCode    string `json:"referral_code"`
+	CaptchaToken    string `json:"captcha_token"`
+	Locale          string `json:"locale"`
 }
 
 func (s *Server) handleRegister(w http.ResponseWriter, r *http.Request) {
@@ -221,7 +221,7 @@ func (s *Server) handleRegister(w http.ResponseWriter, r *http.Request) {
 			Factors: map[string]*store.Factor{}, Seq: s.Store.UserSeq,
 			Is18Plus: true, ReferredBy: req.ReferralCode,
 			WarmupUntil: time.Now().UTC().Add(time.Duration(s.Cfg.WarmupHours) * time.Hour),
-			CreatedAt: time.Now().UTC(),
+			CreatedAt:   time.Now().UTC(),
 		}
 		s.Store.Users[u.ID] = u
 		s.Store.UsersByNick[u.Nickname] = u.ID
@@ -378,7 +378,7 @@ func (s *Server) handle2FASetup(w http.ResponseWriter, r *http.Request) {
 		"digits":      cryptod.TOTPDigits,
 		"period":      cryptod.TOTPPeriod,
 		"expires_at":  time.Now().UTC().Add(15 * time.Minute),
-		"hint":        "Отсканируйте QR в Google Authenticator или введите секрет вручную. " +
+		"hint": "Отсканируйте QR в Google Authenticator или введите секрет вручную. " +
 			"Для активации потребуется два верных кода подряд.",
 	})
 }
@@ -908,8 +908,8 @@ func (s *Server) handleRefresh(w http.ResponseWriter, r *http.Request) {
 	key := hex.EncodeToString(hash[:])
 
 	var (
-		ses *store.Session
-		u   *store.User
+		ses    *store.Session
+		u      *store.User
 		reused bool
 	)
 	s.Store.Write(func() {
@@ -1020,7 +1020,7 @@ func (s *Server) handleSessions(w http.ResponseWriter, r *http.Request) {
 				"geo": ses.Geo, "ua": ses.UA, "device_id": ses.DeviceID,
 				"created_at": ses.CreatedAt, "expires_at": ses.ExpiresAt,
 				"current": ses.ID == s.principal(r).SessionID,
-				"active": ses.Active(now),
+				"active":  ses.Active(now),
 			})
 		}
 	})

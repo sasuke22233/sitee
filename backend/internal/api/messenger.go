@@ -417,7 +417,7 @@ func (s *Server) handleOpenChat(w http.ResponseWriter, r *http.Request) {
 			s.addMemberLocked(chat, u, "member", "")
 			s.addMemberLocked(chat, peer, "member", "")
 			s.appendSystemMessageLocked(chat, nil, store.SystemPayload{
-				Kind: "system",
+				Kind:  "system",
 				Title: "Приватный чат со сквозным шифрованием. Сервер хранит только ciphertext.",
 			})
 		case store.ChatGroup:
@@ -489,8 +489,8 @@ func (s *Server) handleListMessages(w http.ResponseWriter, r *http.Request) {
 	beforeSeq, _ := strconv.ParseInt(q.Get("before_seq"), 10, 64)
 
 	var (
-		items []map[string]any
-		fail  *httpx.APIError
+		items   []map[string]any
+		fail    *httpx.APIError
 		hasMore bool
 	)
 	s.Store.Read(func() {
@@ -615,9 +615,9 @@ func (s *Server) postMessage(u *store.User, chatID string, req sendMessageReques
 	}
 
 	var (
-		msg   *store.Message
-		fail  *httpx.APIError
-		chat  *store.Chat
+		msg     *store.Message
+		fail    *httpx.APIError
+		chat    *store.Chat
 		members []string
 	)
 	s.Store.Write(func() {
@@ -956,12 +956,12 @@ func (s *Server) handleGetBundle(w http.ResponseWriter, r *http.Request) {
 }
 
 type createSessionRequest struct {
-	ChatID        string `json:"chat_id"`
-	ToUser        string `json:"to_user"`
-	ToDevice      string `json:"to_device"`
-	EphemeralPub  string `json:"ephemeral_pub"`
-	UsedOPKID     string `json:"used_opk_id"`
-	RootKeyFP     string `json:"root_key_fingerprint"`
+	ChatID       string `json:"chat_id"`
+	ToUser       string `json:"to_user"`
+	ToDevice     string `json:"to_device"`
+	EphemeralPub string `json:"ephemeral_pub"`
+	UsedOPKID    string `json:"used_opk_id"`
+	RootKeyFP    string `json:"root_key_fingerprint"`
 }
 
 func (s *Server) handleCreateSession(w http.ResponseWriter, r *http.Request) {

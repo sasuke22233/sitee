@@ -133,7 +133,7 @@ func (s *Server) handleWalletTx(w http.ResponseWriter, r *http.Request) {
 				"id": e.ID, "tx_id": e.TxID, "ts": e.TS, "kind": e.Kind,
 				"direction": e.Direction, "amount": e.Amount, "asset": e.Asset,
 				"amount_pretty": prettyAmount(e.Amount, e.Asset),
-				"ref_type": e.RefType, "ref_id": e.RefID, "title": ledgerTitleRU(e),
+				"ref_type":      e.RefType, "ref_id": e.RefID, "title": ledgerTitleRU(e),
 			})
 		}
 	})
@@ -285,7 +285,7 @@ func (s *Server) handleWithdraw(w http.ResponseWriter, r *http.Request) {
 			s.Store.Settings[coolKey] = time.Now().UTC().Format(time.RFC3339)
 			fail = &httpx.APIError{
 				Code: "ADDRESS_COOLING", Status: http.StatusForbidden,
-				Message: "адрес добавлен в белый список: вывод станет доступен через 24 часа",
+				Message:    "адрес добавлен в белый список: вывод станет доступен через 24 часа",
 				Details:    map[string]any{"address": addressTail(addr)},
 				RetryAfter: 24 * 3600,
 			}
@@ -471,8 +471,8 @@ func (s *Server) handleExchangeExecute(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	var (
-		fail *httpx.APIError
-		dto  map[string]any
+		fail           *httpx.APIError
+		dto            map[string]any
 		txSOL, txStars string
 		from, to       string
 		fromAmount     int64
@@ -580,7 +580,7 @@ func (s *Server) handleExchangeExecute(w http.ResponseWriter, r *http.Request) {
 			"status": "executed", "from_asset": from, "to_asset": to, "rate": rate,
 			"from_amount": fromAmount, "to_amount": toAmount, "fee": fee,
 			"from_pretty": prettyAmount(fromAmount, from), "to_pretty": prettyAmount(toAmount, to),
-			"tx_ids": []string{leg1, leg2},
+			"tx_ids":   []string{leg1, leg2},
 			"balances": s.walletDTOLocked(u)["balances"],
 		}
 	})
@@ -641,15 +641,15 @@ func (s *Server) handleStarsInvoice(w http.ResponseWriter, r *http.Request) {
 	}
 	invoiceID := ids.New("inv")
 	payload := map[string]any{
-		"invoice_id":  invoiceID,
-		"user_id":     u.ID,
-		"currency":    "XTR",
-		"amount":      req.AmountStars,
-		"purpose":     req.Purpose,
-		"reference":   req.Reference,
-		"created_at":  time.Now().UTC(),
-		"status":      "pending",
-		"bot":         s.Cfg.TGBotUsername,
+		"invoice_id": invoiceID,
+		"user_id":    u.ID,
+		"currency":   "XTR",
+		"amount":     req.AmountStars,
+		"purpose":    req.Purpose,
+		"reference":  req.Reference,
+		"created_at": time.Now().UTC(),
+		"status":     "pending",
+		"bot":        s.Cfg.TGBotUsername,
 	}
 	s.Store.Write(func() {
 		s.Store.Settings["stars_invoice:"+invoiceID] = payload
@@ -856,7 +856,7 @@ func (s *Server) handleBuyGift(w http.ResponseWriter, r *http.Request) {
 			if fail.Code == "INSUFFICIENT_FUNDS" && req.Asset == store.AssetStars {
 				fail.Details = map[string]any{
 					"need_stars": total, "have_stars": s.Store.UserBalanceLocked(u.ID, store.AssetStars),
-					"hint":        "пополните Stars: POST /api/v1/stars/invoice",
+					"hint": "пополните Stars: POST /api/v1/stars/invoice",
 				}
 			}
 			return

@@ -18,8 +18,8 @@ import (
 // ---------------------------------------------------------------------------
 
 type orderCreateRequest struct {
-	ShopID         string `json:"shop_id"`
-	Items          []struct {
+	ShopID string `json:"shop_id"`
+	Items  []struct {
 		ProductID string `json:"product_id"`
 		Qty       int    `json:"qty"`
 	} `json:"items"`
@@ -88,7 +88,7 @@ func (s *Server) handleCreateOrder(w http.ResponseWriter, r *http.Request) {
 		order = &store.Order{
 			ID: ids.New("ord"), BuyerID: u.ID, ShopID: shop.ID, Status: store.StatusCreated,
 			PayAsset: asset, CreatedAt: now, UpdatedAt: now,
-			PayDeadline: now.Add(time.Duration(s.Cfg.PayTimeoutMinutes) * time.Minute),
+			PayDeadline:    now.Add(time.Duration(s.Cfg.PayTimeoutMinutes) * time.Minute),
 			IdempotencyKey: idem, FeeBPS: s.Store.FeeBPSLocked(shop.ID),
 		}
 		order.Number = orderNumber(order.ID)
@@ -1088,11 +1088,11 @@ func (s *Server) handleOrderHistory(w http.ResponseWriter, r *http.Request) {
 // ---------------------------------------------------------------------------
 
 type reviewCreateRequest struct {
-	Rating             int    `json:"rating"`
-	RatingDelivery     int    `json:"rating_delivery"`
-	RatingDescription  int    `json:"rating_description"`
-	RatingSupport      int    `json:"rating_support"`
-	Body               string `json:"body"`
+	Rating            int    `json:"rating"`
+	RatingDelivery    int    `json:"rating_delivery"`
+	RatingDescription int    `json:"rating_description"`
+	RatingSupport     int    `json:"rating_support"`
+	Body              string `json:"body"`
 }
 
 func (s *Server) handleCreateReview(w http.ResponseWriter, r *http.Request) {

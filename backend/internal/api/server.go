@@ -492,9 +492,9 @@ func (s *Server) verifyFactor(u *store.User, factorName, code string) (bool, err
 	}
 
 	var (
-		ok       bool
-		drift    int
-		usedBk   int
+		ok     bool
+		drift  int
+		usedBk int
 	)
 	s.Store.Read(func() {
 		f := u.Factors[factorName]
@@ -741,13 +741,13 @@ func (s *Server) page(total, limit int, cursor string) (start, end int, next str
 
 func (s *Server) handleHealth(w http.ResponseWriter, r *http.Request) {
 	httpx.JSON(w, http.StatusOK, map[string]any{
-		"status":  "ok",
-		"env":     s.Cfg.Env,
+		"status":   "ok",
+		"env":      s.Cfg.Env,
 		"uptime_s": int(time.Since(s.Started).Seconds()),
 		"crypto": map[string]any{
-			"remote": s.Crypto.RemoteEnabled(),
-			"kek_fp": s.Crypto.KEKFingerprint(),
-			"ops":    s.Crypto.Ops.Load(),
+			"remote":    s.Crypto.RemoteEnabled(),
+			"kek_fp":    s.Crypto.KEKFingerprint(),
+			"ops":       s.Crypto.Ops.Load(),
 			"fallbacks": s.Crypto.Fallbacks.Load(),
 		},
 		"ws_connections": s.Hub.Count(),
@@ -769,8 +769,8 @@ func (s *Server) handleReady(w http.ResponseWriter, r *http.Request) {
 func (s *Server) handleMetrics(w http.ResponseWriter, r *http.Request) {
 	var (
 		users, shops, orders, chats, messages, disputes, gifts int
-		escrowLamports, feesLamports                            int64
-		stars                                                   int64
+		escrowLamports, feesLamports                           int64
+		stars                                                  int64
 	)
 	s.Store.Read(func() {
 		users = len(s.Store.Users)

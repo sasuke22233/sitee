@@ -315,7 +315,7 @@ func (s *Server) runRentLifecycle() int {
 					}
 					sub.AutoRenew = false
 				}
-				if now.Add(72 * time.Hour).After(sub.PeriodEnd) && sub.Status != store.RentExpiring {
+				if now.Add(72*time.Hour).After(sub.PeriodEnd) && sub.Status != store.RentExpiring {
 					sub.Status = store.RentExpiring
 				}
 				if now.After(sub.PeriodEnd) {
@@ -460,7 +460,7 @@ func (s *Server) pruneExpired() {
 			}
 		}
 		for id, pk := range s.Store.Prekeys {
-			if now.After(pk.CreatedAt.Add(90 * 24 * time.Hour)) && len(pk.OneTimeKeys) == 0 {
+			if now.After(pk.CreatedAt.Add(90*24*time.Hour)) && len(pk.OneTimeKeys) == 0 {
 				delete(s.Store.Prekeys, id)
 			}
 		}

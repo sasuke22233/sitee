@@ -37,8 +37,18 @@ jobs:
           bad=$(gofmt -l .)
           if [ -z "$bad" ]; then echo "gofmt: ok"; exit 0; fi
           for f in $bad; do
-            d=$(gofmt -d "$f" | base64 -w0)
-            echo "::error file=$f::gofmt -w $f; diff-b64:$d"
+            echo "::error file=$f::gofmt -w $f"
+          done
+          # Аннотация обрезается на 4096 символов, поэтому base64-diff режем
+          # на чанки по 3000 и раскладываем по строкам — так его можно собрать.
+          for f in $bad; do
+            b64=$(gofmt -d "$f" | base64 -w0)
+            n=$(( (${#b64} + 2999) / 3000 ))
+            i=0
+            while [ $i -lt $n ]; do
+              echo "::notice file=$f,line=$((i+1)),title=diff $((i+1))/$n::${b64:$((i*3000)):3000}"
+              i=$((i+1))
+            done
           done
           exit 1
       - uses: dtolnay/rust-toolchain@stable
