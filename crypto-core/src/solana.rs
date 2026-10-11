@@ -335,8 +335,11 @@ mod tests {
         assert_eq!(&msg[68..100], &SYSTEM_PROGRAM_ID);
         assert_eq!(&msg[100..132], &bh);
         // Данные инструкции: 02 00 00 00 + лампорты LE.
-        assert_eq!(&msg[140..144], &2u32.to_le_bytes());
-        assert_eq!(&msg[144..152], &1_000_000_000u64.to_le_bytes());
+        // Смещение 138 = 132 (конец blockhash) + 1 (счёт инструкций)
+        // + 1 (program_id_index) + 1 (счёт аккаунтов) + 2 (аккаунты)
+        // + 1 (компактная длина данных).
+        assert_eq!(&msg[138..142], &2u32.to_le_bytes());
+        assert_eq!(&msg[142..150], &1_000_000_000u64.to_le_bytes());
     }
 
     #[test]

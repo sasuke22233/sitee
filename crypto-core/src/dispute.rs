@@ -8,7 +8,7 @@
 use crate::hmac::hmac_sha256;
 
 /// Алфавит псевдонимов: без 0, O, 1, I, L.
-const ALPHABET: &[u8; 32] = b"ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+const ALPHABET: &[u8; 31] = b"ABCDEFGHJKMNPQRSTUVWXYZ23456789";
 
 /// Роль участника в споре.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

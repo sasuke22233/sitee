@@ -163,6 +163,9 @@ mod tests {
     fn login_fails_capped() {
         let s = Signals {
             login_fails: 100,
+            // Иначе «аккаунт младше 24 ч» добавит свои 100 и тест будет
+            // мерить не потолок логинов, а возраст аккаунта.
+            account_age_hours: 48,
             ..Default::default()
         };
         let r = score(&s);

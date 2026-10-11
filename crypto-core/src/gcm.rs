@@ -100,8 +100,10 @@ fn s_block(h: u128, aad: &[u8], ct: &[u8]) -> u128 {
     buf.extend_from_slice(ct);
     buf.extend(std::iter::repeat(0u8).take(cpad));
     let mut lenblk = [0u8; 16];
-    lenblk[4..8].copy_from_slice(&((aad.len() as u64) * 8).to_be_bytes());
-    lenblk[12..16].copy_from_slice(&((ct.len() as u64) * 8).to_be_bytes());
+    // SP 800-38D §5.2.1: len(A)||len(C) — две 64-битные величины,
+    // поэтому 8 + 8 байт, а не 4 + 4.
+    lenblk[0..8].copy_from_slice(&((aad.len() as u64) * 8).to_be_bytes());
+    lenblk[8..16].copy_from_slice(&((ct.len() as u64) * 8).to_be_bytes());
     buf.extend_from_slice(&lenblk);
     ghash(h, &buf)
 }

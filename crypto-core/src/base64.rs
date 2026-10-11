@@ -56,12 +56,21 @@ fn decode_any(s: &str, url: bool) -> Result<Vec<u8>, Error> {
     let mut acc: u32 = 0;
     let mut bits: u32 = 0;
     let mut out: Vec<u8> = Vec::with_capacity(s.len() * 3 / 4);
+    let mut padded = false;
     for ch in s.bytes() {
         if ch == b'=' {
-            break;
+            padded = true;
+            continue;
         }
         if ch.is_ascii_whitespace() {
             continue;
+        }
+        if padded {
+            // После начала выравнивания допустимы только '=' и пробелы.
+            return Err(Error::Base64(format!(
+                "мусор после выравнивания: {:?}",
+                ch as char
+            )));
         }
         let v: u32 = match ch {
             b'A'..=b'Z' => (ch - b'A') as u32,
