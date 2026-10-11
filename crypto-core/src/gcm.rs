@@ -183,7 +183,12 @@ mod tests {
         let pt = "sitee: секретное сообщение чата".as_bytes();
         let aad = b"msg:ord_1";
         let blob = aes256_gcm_encrypt(&key, &iv, pt, aad).unwrap();
-        assert_eq!(aes256_gcm_decrypt(&key, &iv, &blob, aad).unwrap().as_slice(), pt);
+        assert_eq!(
+            aes256_gcm_decrypt(&key, &iv, &blob, aad)
+                .unwrap()
+                .as_slice(),
+            pt
+        );
         let mut broken = blob.clone();
         broken[0] ^= 1;
         assert!(aes256_gcm_decrypt(&key, &iv, &broken, aad).is_err());

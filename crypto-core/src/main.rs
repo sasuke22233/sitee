@@ -141,8 +141,14 @@ fn route(
             let signals = Signals {
                 login_fails: num_field("login_fails").unwrap_or(0.0) as i32,
                 ip_reputation: str_field("ip_reputation").unwrap_or_else(|| "clean".into()),
-                geo_mismatch: req.get("geo_mismatch").and_then(|v| v.as_bool()).unwrap_or(false),
-                new_device: req.get("new_device").and_then(|v| v.as_bool()).unwrap_or(false),
+                geo_mismatch: req
+                    .get("geo_mismatch")
+                    .and_then(|v| v.as_bool())
+                    .unwrap_or(false),
+                new_device: req
+                    .get("new_device")
+                    .and_then(|v| v.as_bool())
+                    .unwrap_or(false),
                 account_age_hours: num_field("account_age_hours").unwrap_or(0.0) as i64,
                 weak_password: req
                     .get("weak_password")
@@ -188,7 +194,10 @@ fn route(
                 Value::Obj(vec![
                     ("allowed".into(), Value::Bool(d.allowed)),
                     ("remaining".into(), Value::Num(d.remaining as f64)),
-                    ("retry_after_secs".into(), Value::Num(d.retry_after_secs as f64)),
+                    (
+                        "retry_after_secs".into(),
+                        Value::Num(d.retry_after_secs as f64),
+                    ),
                     ("blocked".into(), Value::Bool(d.blocked)),
                     ("limit".into(), Value::Num(d.limit as f64)),
                     ("profile".into(), Value::Str(d.profile.to_string())),
@@ -203,7 +212,12 @@ fn route(
                 str_field("plaintext_b64"),
             ) {
                 (Some(d), Some(o), Some(p)) => (d, o, p),
-                _ => return (400, "{\"error\":\"нужны domain, object_id, plaintext_b64\"}".into()),
+                _ => {
+                    return (
+                        400,
+                        "{\"error\":\"нужны domain, object_id, plaintext_b64\"}".into(),
+                    )
+                }
             };
             let plaintext = match base64::decode(&plaintext) {
                 Ok(v) => v,
@@ -224,7 +238,10 @@ fn route(
                 _ => return (400, "{\"error\":\"нужны domain, object_id, blob\"}".into()),
             };
             match core.decrypt(&domain, &object_id, &blob) {
-                Ok(bytes) => json_ok(vec![("plaintext_b64".into(), Value::Str(base64::encode(&bytes)))]),
+                Ok(bytes) => json_ok(vec![(
+                    "plaintext_b64".into(),
+                    Value::Str(base64::encode(&bytes)),
+                )]),
                 Err(e) => (400, format!("{{\"error\":\"{e}\"}}")),
             }
         }
@@ -235,10 +252,7 @@ fn route(
         }
         "/v1/crypto/password/hash" => {
             let password = str_field("password").unwrap_or_default();
-            let check = req
-                .get("policy")
-                .and_then(|v| v.as_bool())
-                .unwrap_or(false);
+            let check = req.get("policy").and_then(|v| v.as_bool()).unwrap_or(false);
             let result = if check {
                 sitee_crypto_core::pbkdf2::hash_password_checked(&password)
             } else {

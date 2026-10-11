@@ -17,12 +17,42 @@ const P: Fe = [
     0xffffffffffffffff,
     0x7fffffffffffffff,
 ];
-const PM2: Fe = [0xffffffffffffffeb, 0xffffffffffffffff, 0xffffffffffffffff, 0x7fffffffffffffff];
-const EXPSQRT: Fe = [0xfffffffffffffffd, 0xffffffffffffffff, 0xffffffffffffffff, 0x0fffffffffffffff];
-const SQRTM1: Fe = [0xc4ee1b274a0ea0b0, 0x2f431806ad2fe478, 0x2b4d00993dfbd7a7, 0x2b8324804fc1df0b];
-const D: Fe = [0x75eb4dca135978a3, 0x00700a4d4141d8ab, 0x8cc740797779e898, 0x52036cee2b6ffe73];
-const TWOD: Fe = [0xebd69b9426b2f159, 0x00e0149a8283b156, 0x198e80f2eef3d130, 0x2406d9dc56dffce7];
-const L: Fe = [0x5812631a5cf5d3ed, 0x14def9dea2f79cd6, 0x0000000000000000, 0x1000000000000000];
+const PM2: Fe = [
+    0xffffffffffffffeb,
+    0xffffffffffffffff,
+    0xffffffffffffffff,
+    0x7fffffffffffffff,
+];
+const EXPSQRT: Fe = [
+    0xfffffffffffffffd,
+    0xffffffffffffffff,
+    0xffffffffffffffff,
+    0x0fffffffffffffff,
+];
+const SQRTM1: Fe = [
+    0xc4ee1b274a0ea0b0,
+    0x2f431806ad2fe478,
+    0x2b4d00993dfbd7a7,
+    0x2b8324804fc1df0b,
+];
+const D: Fe = [
+    0x75eb4dca135978a3,
+    0x00700a4d4141d8ab,
+    0x8cc740797779e898,
+    0x52036cee2b6ffe73,
+];
+const TWOD: Fe = [
+    0xebd69b9426b2f159,
+    0x00e0149a8283b156,
+    0x198e80f2eef3d130,
+    0x2406d9dc56dffce7,
+];
+const L: Fe = [
+    0x5812631a5cf5d3ed,
+    0x14def9dea2f79cd6,
+    0x0000000000000000,
+    0x1000000000000000,
+];
 
 /// Точка в расширенных однородных координатах (x = X/Z, y = Y/Z).
 #[derive(Clone, Copy)]
@@ -574,7 +604,11 @@ mod tests {
         broken[10] ^= 1;
         assert!(!verify(kp.public_key(), msg, &broken));
         // Подделка сообщения
-        assert!(!verify(kp.public_key(), "sitee: другой перевод".as_bytes(), &sig));
+        assert!(!verify(
+            kp.public_key(),
+            "sitee: другой перевод".as_bytes(),
+            &sig
+        ));
     }
 
     #[test]

@@ -248,7 +248,6 @@ pub fn build_transfer_message(
     msg
 }
 
-
 /// base58-декодирование (нужно тестам и проверке входящих адресов).
 pub fn base58_decode(s: &str) -> Result<Vec<u8>> {
     let mut num: Vec<u8> = vec![0];
@@ -283,15 +282,14 @@ mod tests {
         assert_eq!(base58_encode(b"hello"), "Cn8eVZg");
         assert_eq!(base58_encode(&[0]), "1");
         assert_eq!(base58_encode(&[0, 0]), "11");
-        assert_eq!(
-            base58_encode(&[0, 1, 2, 3, 255]),
-            "12VfYr"
-        );
+        assert_eq!(base58_encode(&[0, 1, 2, 3, 255]), "12VfYr");
     }
 
     #[test]
     fn address_validation() {
-        assert!(is_valid_address("9WzDXwBbmkg8ZTbNMqUxvQRAyrZzDsGYdLVL9zYtAWWM"));
+        assert!(is_valid_address(
+            "9WzDXwBbmkg8ZTbNMqUxvQRAyrZzDsGYdLVL9zYtAWWM"
+        ));
         assert!(!is_valid_address("0OIl"));
         assert!(!is_valid_address("short"));
         assert!(!is_valid_address(&"1".repeat(45)));
@@ -352,7 +350,9 @@ mod tests {
         assert!(sign_transaction(&core, &acc.path, b"tx", Purpose::Withdraw, &policy).is_ok());
         assert!(sign_transaction(&core, &acc.path, b"tx", Purpose::Sweep, &policy).is_err());
         assert!(sign_transaction(&core, &acc.path, b"", Purpose::Withdraw, &policy).is_err());
-        assert!(sign_transaction(&core, &acc.path, &[0u8; 2000], Purpose::Withdraw, &policy).is_err());
+        assert!(
+            sign_transaction(&core, &acc.path, &[0u8; 2000], Purpose::Withdraw, &policy).is_err()
+        );
         // Whitelist: незнакомый получатель отклоняется.
         let strict = SignPolicy {
             whitelist: vec!["9WzDXwBbmkg8ZTbNMqUxvQRAyrZzDsGYdLVL9zYtAWWM".into()],
@@ -362,10 +362,7 @@ mod tests {
         assert!(check_whitelist(&strict, "11111111111111111111111111111111").is_err());
         assert!(check_whitelist(&Default::default(), "любой").is_ok());
         // Точное значение: base58(ed25519-ключ из HKDF), сверено с Node-зеркалом.
-        assert_eq!(
-            acc.address,
-            "3H5yyfS9nm9oZiLzU2rkYbbd1e4HRKS8dUStMJGuLhNv"
-        );
+        assert_eq!(acc.address, "3H5yyfS9nm9oZiLzU2rkYbbd1e4HRKS8dUStMJGuLhNv");
         assert!(is_valid_address(&acc.address));
     }
 

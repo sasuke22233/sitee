@@ -1,9 +1,7 @@
 //! SHA-1 (FIPS 180-4). Нужен только для HOTP/TOTP по RFC 6238 —
 //! стандарт Google Authenticator исторически закреплён за SHA-1.
 
-const H0: [u32; 5] = [
-    0x67452301, 0xefcdab89, 0x98badcfe, 0x10325476, 0xc3d2e1f0,
-];
+const H0: [u32; 5] = [0x67452301, 0xefcdab89, 0x98badcfe, 0x10325476, 0xc3d2e1f0];
 
 /// Потоковый хеш SHA-1.
 #[derive(Clone)]
@@ -136,7 +134,13 @@ mod tests {
 
     #[test]
     fn vectors() {
-        assert_eq!(to_hex(&sha1(b"")), "da39a3ee5e6b4b0d3255bfef95601890afd80709");
-        assert_eq!(to_hex(&sha1(b"abc")), "a9993e364706816aba3e25717850c26c9cd0d89d");
+        assert_eq!(
+            to_hex(&sha1(b"")),
+            "da39a3ee5e6b4b0d3255bfef95601890afd80709"
+        );
+        assert_eq!(
+            to_hex(&sha1(b"abc")),
+            "a9993e364706816aba3e25717850c26c9cd0d89d"
+        );
     }
 }

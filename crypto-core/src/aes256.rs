@@ -153,7 +153,10 @@ mod tests {
 
     #[test]
     fn sbox_first_bytes() {
-        assert_eq!(&SBOX[0..16], b"\x63\x7c\x77\x7b\xf2\x6b\x6f\xc5\x30\x01\x67\x2b\xfe\xd7\xab\x76");
+        assert_eq!(
+            &SBOX[0..16],
+            b"\x63\x7c\x77\x7b\xf2\x6b\x6f\xc5\x30\x01\x67\x2b\xfe\xd7\xab\x76"
+        );
         assert_eq!(SBOX[0x53], 0xed);
     }
 }

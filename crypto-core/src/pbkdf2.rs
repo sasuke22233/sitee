@@ -105,7 +105,11 @@ pub fn verify_password(password: &str, encoded: &str) -> bool {
 
 /// Нужно ли перехешировать при входе (итерации ниже текущих).
 pub fn needs_rehash(encoded: &str) -> bool {
-    match encoded.split('$').nth(1).and_then(|v| v.parse::<u32>().ok()) {
+    match encoded
+        .split('$')
+        .nth(1)
+        .and_then(|v| v.parse::<u32>().ok())
+    {
         Some(iter) => iter < PBKDF2_ITERATIONS,
         None => true,
     }

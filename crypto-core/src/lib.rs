@@ -5,27 +5,27 @@
 // cryptod) и с preview-зеркалом (tools/preview/crypto.mjs) — это проверяется
 // тестами tests/interop.rs.
 
+pub mod aes256;
+pub mod audit;
 pub mod base64;
+pub mod blind;
+pub mod dispute;
+pub mod ed25519;
+pub mod envelope;
+pub mod fraud;
+pub mod gcm;
+pub mod hkdf;
+pub mod hmac;
 pub mod json;
+pub mod pbkdf2;
 pub mod rand;
+pub mod ratelimit;
+pub mod safety;
 pub mod sha1;
 pub mod sha256;
 pub mod sha512;
-pub mod hmac;
-pub mod hkdf;
-pub mod pbkdf2;
-pub mod aes256;
-pub mod gcm;
-pub mod envelope;
-pub mod blind;
-pub mod totp;
-pub mod ed25519;
 pub mod solana;
-pub mod safety;
-pub mod audit;
-pub mod dispute;
-pub mod fraud;
-pub mod ratelimit;
+pub mod totp;
 
 pub use crate::envelope::Core;
 pub use crate::fraud::{score as fraud_score, Signals as FraudSignals};
@@ -95,7 +95,10 @@ impl std::fmt::Display for Error {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Error::BadKeyLength { expected, got } => {
-                write!(f, "неверная длина ключа: ожидалось {expected}, получено {got}")
+                write!(
+                    f,
+                    "неверная длина ключа: ожидалось {expected}, получено {got}"
+                )
             }
             Error::BadEnvelope(m) => write!(f, "некорректный конверт: {m}"),
             Error::Integrity(m) => write!(f, "нарушена целостность: {m}"),
