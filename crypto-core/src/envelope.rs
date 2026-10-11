@@ -82,14 +82,29 @@ impl Core {
 
     /// Шифрование в конверт v1, результат — base64.
     pub fn encrypt(&self, domain: &str, object_id: &str, plaintext: &[u8]) -> Result<String> {
-        let dek = self.domain_key(domain);
         let nonce = nonce12();
+        self.encrypt_with_nonce(domain, object_id, plaintext, &nonce)
+    }
+
+    /// Шифрование с заданным nonce.
+    ///
+    /// Нужно для тестов интероперабельности: `encrypt` берёт nonce из
+    /// `rand`, поэтому его результат невоспроизводим, и сравнить байты с
+    /// эталоном Go/Node невозможно. Боевой код использует только `encrypt`.
+    pub fn encrypt_with_nonce(
+        &self,
+        domain: &str,
+        object_id: &str,
+        plaintext: &[u8],
+        nonce: &[u8; NONCE_LEN],
+    ) -> Result<String> {
+        let dek = self.domain_key(domain);
         let aad = format!("{domain}:{object_id}");
-        let body = gcm::aes256_gcm_encrypt(&dek, &nonce, plaintext, aad.as_bytes())?;
+        let body = gcm::aes256_gcm_encrypt(&dek, nonce, plaintext, aad.as_bytes())?;
         let mut env = Vec::with_capacity(HEADER_LEN + body.len());
         env.push(ENVELOPE_VERSION);
         env.extend_from_slice(&self.key_id(domain));
-        env.extend_from_slice(&nonce);
+        env.extend_from_slice(nonce);
         env.extend_from_slice(&body);
         Ok(base64::encode(&env))
     }

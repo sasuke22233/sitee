@@ -101,12 +101,21 @@ fn aes256_gcm_matches_node() {
 #[test]
 fn envelope_matches_go_and_node() {
     // Домен pii, объект usr_1: структура конверта и AAD совпадают с эталоном.
+    // Nonce фиксирован: encrypt() берёт его из rand, поэтому для побайтового
+    // сравнения с эталоном используется encrypt_with_nonce.
     let core = Core::new(&KEK).unwrap();
-    let blob = core.encrypt_string("pii", "usr_1", "lena@sitee.dev").unwrap();
-    // Значение снято с Node-зеркала при том же KEK: форматы идентичны.
+    let nonce = [
+        0x00, 0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77, 0x88, 0x99, 0xaa, 0xbb,
+    ];
+    let blob = core
+        .encrypt_with_nonce("pii", "usr_1", b"lena@sitee.dev", &nonce)
+        .unwrap();
+    // Значение вычислено тем же алгоритмом на Node (crypto.mjs: HKDF-SHA256 с
+    // salt "sitee-dek-v1", key_id = SHA-256("sitee-keyid-v1:pii:"+fp)[:8],
+    // AAD "pii:usr_1") при KEK из 32 байт 0x5a.
     assert_eq!(
         blob,
-        "AeUe1TVIhpLNQ+j4l7ISpofiM0g6+iu+oRt0Q6yy8valRFr+weXgEbkrBn0kg6El1KAp"
+        "AeUe1TVIhpLNABEiM0RVZneImaq7RTfRwghMd1k1GQ95FWEOiUL0ehxHY4/BA/7X2udM"
     );
     let raw = base64::decode(&blob).unwrap();
     assert_eq!(raw[0], 0x01);
