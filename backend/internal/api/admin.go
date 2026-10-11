@@ -124,12 +124,12 @@ func (s *Server) handleAdminDashboard(w http.ResponseWriter, r *http.Request) {
 				"escrow_held_sol": store.FormatSOL(escrowHeld),
 				"rent_mrr_sol":    store.FormatSOL(rentMRR),
 				"platform_accounts": map[string]any{
-					"fees":               store.FormatSOL(s.Store.BalanceLocked(store.PlatformAccount(store.PlatformFees, store.AssetSOL))),
-					"rent":               store.FormatSOL(s.Store.BalanceLocked(store.PlatformAccount(store.PlatformRent, store.AssetSOL))),
-					"custody":            store.FormatSOL(s.Store.BalanceLocked(store.PlatformAccount(store.PlatformCustody, store.AssetSOL))),
+					"fees":                store.FormatSOL(s.Store.BalanceLocked(store.PlatformAccount(store.PlatformFees, store.AssetSOL))),
+					"rent":                store.FormatSOL(s.Store.BalanceLocked(store.PlatformAccount(store.PlatformRent, store.AssetSOL))),
+					"custody":             store.FormatSOL(s.Store.BalanceLocked(store.PlatformAccount(store.PlatformCustody, store.AssetSOL))),
 					"withdrawals_pending": store.FormatSOL(s.Store.BalanceLocked(store.PlatformAccount(store.PlatformWithdrawHold, store.AssetSOL))),
-					"stars_reserve":      s.Store.BalanceLocked(store.PlatformAccount(store.PlatformStarsReserve, store.AssetStars)),
-					"gift_revenue_stars": s.Store.BalanceLocked(store.PlatformAccount(store.GiftRevenue, store.AssetStars)),
+					"stars_reserve":       s.Store.BalanceLocked(store.PlatformAccount(store.PlatformStarsReserve, store.AssetStars)),
+					"gift_revenue_stars":  s.Store.BalanceLocked(store.PlatformAccount(store.GiftRevenue, store.AssetStars)),
 				},
 			},
 			"disputes": map[string]any{"total": len(s.Store.Disputes), "by_status": disputesByStatus},
@@ -529,10 +529,10 @@ func (s *Server) handleAdminSanction(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	var (
-		fail   *httpx.APIError
-		before map[string]any
-		after  map[string]any
-		sh     *store.Shop
+		fail    *httpx.APIError
+		before  map[string]any
+		after   map[string]any
+		sh      *store.Shop
 		adminID string
 	)
 	s.Store.Write(func() {
@@ -1604,23 +1604,23 @@ func (s *Server) handleAdminReconciliation(w http.ResponseWriter, r *http.Reques
 		dto = map[string]any{
 			"generated_at": time.Now().UTC(),
 			"sol": map[string]any{
-				"user_balances":     store.FormatSOL(userSOL),
-				"escrow":            store.FormatSOL(escrowSOL),
-				"shop_balances":     store.FormatSOL(shopSOL),
-				"platform_accounts": store.FormatSOL(platformSOL),
-				"withdraw_hold":     store.FormatSOL(holdSOL),
-				"deposits_credited": store.FormatSOL(depositsSeen),
+				"user_balances":         store.FormatSOL(userSOL),
+				"escrow":                store.FormatSOL(escrowSOL),
+				"shop_balances":         store.FormatSOL(shopSOL),
+				"platform_accounts":     store.FormatSOL(platformSOL),
+				"withdraw_hold":         store.FormatSOL(holdSOL),
+				"deposits_credited":     store.FormatSOL(depositsSeen),
 				"withdrawals_in_flight": store.FormatSOL(withdrawalsPending),
-				"left_side":  store.FormatSOL(left),
-				"right_side": store.FormatSOL(right),
-				"delta":      store.FormatSOL(left - right),
+				"left_side":             store.FormatSOL(left),
+				"right_side":            store.FormatSOL(right),
+				"delta":                 store.FormatSOL(left - right),
 			},
 			"stars": map[string]any{
 				"user_balances":     userStars,
 				"platform_accounts": platformStars,
 			},
-			"invariants": map[string]any{"ok": len(problems) == 0, "problems": problems},
-			"ledger":     map[string]any{"entries": len(s.Store.Ledger), "accounts": len(s.Store.Accounts)},
+			"invariants":         map[string]any{"ok": len(problems) == 0, "problems": problems},
+			"ledger":             map[string]any{"entries": len(s.Store.Ledger), "accounts": len(s.Store.Accounts)},
 			"action_on_mismatch": "P1-алерт + заморозка выводов (docs/solana.md §5.3)",
 		}
 	})
@@ -1718,8 +1718,8 @@ func (s *Server) handleAdminSecurityEvents(w http.ResponseWriter, r *http.Reques
 	sort.Strings(banned)
 	httpx.JSON(w, http.StatusOK, map[string]any{
 		"items": items, "total": len(s.Store.AuthEvents),
-		"banned_ips": banned,
-		"rate_limit": s.Limiter.Stats(),
+		"banned_ips":     banned,
+		"rate_limit":     s.Limiter.Stats(),
 		"ws_connections": s.Hub.Count(),
 	})
 }

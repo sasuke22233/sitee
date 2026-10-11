@@ -1,11 +1,11 @@
 package api
 
 import (
-	"net/url"
 	"crypto/hmac"
 	"crypto/sha256"
 	"fmt"
 	"math"
+	"net/url"
 	"sort"
 	"strings"
 	"time"
@@ -113,7 +113,7 @@ func (s *Server) feedScoresLocked() {
 
 func (s *Server) feedScoreLocked(sh *store.Shop, now time.Time) float64 {
 	rating := norm(sh.RatingBayes, 0, 5)
-	sales := math.Log10(float64(sh.SalesCount) + 1) / 4
+	sales := math.Log10(float64(sh.SalesCount)+1) / 4
 	if sales > 1 {
 		sales = 1
 	}
@@ -289,24 +289,24 @@ func (s *Server) shopCardLocked(sh *store.Shop, viewerCountry string) map[string
 	}
 	return map[string]any{
 		"id": sh.ID, "slug": sh.Slug, "name": sh.Name,
-		"cover_url":   coverURL(sh),
-		"avatar_url":  sh.AvatarURL,
-		"rating":      round1(sh.RatingBayes),
+		"cover_url":    coverURL(sh),
+		"avatar_url":   sh.AvatarURL,
+		"rating":       round1(sh.RatingBayes),
 		"rating_count": sh.RatingCount,
-		"is_crowned":  s.Store.IsCrownedLocked(sh),
-		"is_verified": sh.IsVerified,
-		"country":     sh.Country, "city": city,
-		"sales_count":  sh.SalesCount,
+		"is_crowned":   s.Store.IsCrownedLocked(sh),
+		"is_verified":  sh.IsVerified,
+		"country":      sh.Country, "city": city,
+		"sales_count":    sh.SalesCount,
 		"response_p50_s": sh.ResponseP50S,
-		"categories":   cats,
+		"categories":     cats,
 		"price_from_sol": priceFromStr(priceFrom),
-		"badges":       badges,
-		"promoted":     false,
-		"rent_status":  s.Store.RentStatusLocked(sh.ID),
-		"score":        math.Round(score*10000) / 10000,
-		"accepts_stars": sh.AcceptsStars,
-		"status":       sh.Status,
-		"sanction":     sh.SanctionLevel,
+		"badges":         badges,
+		"promoted":       false,
+		"rent_status":    s.Store.RentStatusLocked(sh.ID),
+		"score":          math.Round(score*10000) / 10000,
+		"accepts_stars":  sh.AcceptsStars,
+		"status":         sh.Status,
+		"sanction":       sh.SanctionLevel,
 	}
 }
 
@@ -464,17 +464,17 @@ func (s *Server) productDTOLocked(p *store.Product) map[string]any {
 	return map[string]any{
 		"id": p.ID, "shop_id": p.ShopID, "title": p.Title, "description": p.Description,
 		"kind": p.Kind, "price_sol": store.FormatSOL(p.PriceLamports), "price_stars": p.PriceStars,
-		"price_sol_raw": p.PriceLamports,
-		"media_urls":    p.MediaURLs,
-		"stock_free":    p.StockFree,
-		"stock_total":   p.StockTotal,
-		"warranty_days": p.WarrantyDays,
+		"price_sol_raw":  p.PriceLamports,
+		"media_urls":     p.MediaURLs,
+		"stock_free":     p.StockFree,
+		"stock_total":    p.StockTotal,
+		"warranty_days":  p.WarrantyDays,
 		"delivery_sla_h": p.DeliverySLAH,
-		"status":        p.Status,
-		"rating":        round1(rating),
-		"rating_count":  p.RatingCount,
-		"delivery_kind": deliveryKindOf(p),
-		"created_at":    p.CreatedAt,
+		"status":         p.Status,
+		"rating":         round1(rating),
+		"rating_count":   p.RatingCount,
+		"delivery_kind":  deliveryKindOf(p),
+		"created_at":     p.CreatedAt,
 	}
 }
 
@@ -507,10 +507,10 @@ func (s *Server) orderDTOLocked(o *store.Order, role string) map[string]any {
 	for _, it := range o.Items {
 		items = append(items, map[string]any{
 			"id": it.ID, "product_id": it.ProductID, "title": it.Title, "qty": it.Qty,
-			"unit_price_sol": store.FormatSOL(it.UnitLamports),
+			"unit_price_sol":   store.FormatSOL(it.UnitLamports),
 			"unit_price_stars": it.UnitStars,
-			"delivered_at":   it.DeliveredAt,
-			"has_delivery":   it.DeliveredPayloadCT != "",
+			"delivered_at":     it.DeliveredAt,
+			"has_delivery":     it.DeliveredPayloadCT != "",
 		})
 	}
 	timeline := []map[string]any{}
@@ -980,11 +980,11 @@ func (s *Server) walletDTOLocked(u *store.User) map[string]any {
 			"asset": store.AssetSOL, "address": u.DepositAddress,
 			"path": u.DepositPath, "min": store.FormatSOL(s.Cfg.MinDeposit),
 			"confirmations_required": s.Cfg.Confirmations,
-			"network": s.Cfg.SolanaNetwork, "memo": nil,
+			"network":                s.Cfg.SolanaNetwork, "memo": nil,
 		},
 		"limits": map[string]any{
-			"withdraw_daily_sol": store.FormatSOL(s.Cfg.WithdrawDailyLamports),
-			"withdraw_four_eyes_sol": store.FormatSOL(s.Cfg.FourEyesLamports),
+			"withdraw_daily_sol":           store.FormatSOL(s.Cfg.WithdrawDailyLamports),
+			"withdraw_four_eyes_sol":       store.FormatSOL(s.Cfg.FourEyesLamports),
 			"withdraw_whitelist_cooling_h": 24,
 			"ops_totp_threshold_sol":       store.FormatSOL(s.Cfg.OpsTotThresholdLamports),
 			"ops_totp_threshold_stars":     s.Cfg.OpsTotThresholdStars,
@@ -1004,7 +1004,7 @@ func (s *Server) reviewDTOLocked(rv *store.Review) map[string]any {
 		"author": authorName, "rating": rv.Rating,
 		"rating_delivery": rv.RatingDelivery, "rating_description": rv.RatingDescription,
 		"rating_support": rv.RatingSupport,
-		"body": rv.Body, "is_verified_purchase": rv.Verified,
+		"body":           rv.Body, "is_verified_purchase": rv.Verified,
 		"shop_reply": rv.ShopReply, "shop_reply_at": rv.ShopReplyAt,
 		"status": rv.Status, "helpful_count": rv.Helpful, "created_at": rv.CreatedAt,
 	}

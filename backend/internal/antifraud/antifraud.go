@@ -14,23 +14,23 @@ import (
 
 // Profile — профиль лимитов (docs/security.md §8).
 type Profile struct {
-	Name       string
+	Name        string
 	LimitPerMin float64 // устойчивая скорость (токенов в минуту)
-	Burst      float64   // размер ведра
-	BlockAfter int       // сколько отказов подряд приводят к временному бану
-	BlockFor   time.Duration
+	Burst       float64 // размер ведра
+	BlockAfter  int     // сколько отказов подряд приводят к временному бану
+	BlockFor    time.Duration
 }
 
 // Стандартные профили.
 var (
-	ProfilePublic   = Profile{Name: "public", LimitPerMin: 60, Burst: 20}
-	ProfileAuth     = Profile{Name: "auth", LimitPerMin: 10, Burst: 5, BlockAfter: 20, BlockFor: 15 * time.Minute}
-	Profile2FA      = Profile{Name: "2fa", LimitPerMin: 12, Burst: 2, BlockAfter: 10, BlockFor: 30 * time.Minute}
-	ProfilePayment  = Profile{Name: "payment", LimitPerMin: 10, Burst: 4}
-	ProfileWrite    = Profile{Name: "write", LimitPerMin: 120, Burst: 40}
-	ProfileAdmin    = Profile{Name: "admin", LimitPerMin: 120, Burst: 40}
-	ProfileWSConn   = Profile{Name: "ws-connect", LimitPerMin: 5, Burst: 3, BlockAfter: 10, BlockFor: 10 * time.Minute}
-	ProfileWSMsg    = Profile{Name: "ws-msg", LimitPerMin: 60, Burst: 20}
+	ProfilePublic  = Profile{Name: "public", LimitPerMin: 60, Burst: 20}
+	ProfileAuth    = Profile{Name: "auth", LimitPerMin: 10, Burst: 5, BlockAfter: 20, BlockFor: 15 * time.Minute}
+	Profile2FA     = Profile{Name: "2fa", LimitPerMin: 12, Burst: 2, BlockAfter: 10, BlockFor: 30 * time.Minute}
+	ProfilePayment = Profile{Name: "payment", LimitPerMin: 10, Burst: 4}
+	ProfileWrite   = Profile{Name: "write", LimitPerMin: 120, Burst: 40}
+	ProfileAdmin   = Profile{Name: "admin", LimitPerMin: 120, Burst: 40}
+	ProfileWSConn  = Profile{Name: "ws-connect", LimitPerMin: 5, Burst: 3, BlockAfter: 10, BlockFor: 10 * time.Minute}
+	ProfileWSMsg   = Profile{Name: "ws-msg", LimitPerMin: 60, Burst: 20}
 	// ProfileChatMsg — отправка сообщений в чат (FR-MSG-10): 100/мин,
 	// после 3 отказов подряд — мут на 30 минут.
 	ProfileChatMsg = Profile{Name: "chat-msg", LimitPerMin: 100, Burst: 30,
@@ -105,7 +105,7 @@ func (l *Limiter) Allow(key string, p Profile) Decision {
 		b.rejects++
 		l.blocks[p.Name]++
 		need := 1 - b.tokens
-		d.RetryAfter = time.Duration(need/(p.LimitPerMin/60.0)*float64(time.Second)).Round(time.Second)
+		d.RetryAfter = time.Duration(need / (p.LimitPerMin / 60.0) * float64(time.Second)).Round(time.Second)
 		if d.RetryAfter < time.Second {
 			d.RetryAfter = time.Second
 		}
@@ -123,7 +123,7 @@ func (l *Limiter) Allow(key string, p Profile) Decision {
 	d.Allowed = true
 	d.Remaining = int(b.tokens)
 	if p.LimitPerMin > 0 {
-		d.ResetIn = time.Duration(float64(time.Minute)/p.LimitPerMin).Round(time.Millisecond)
+		d.ResetIn = time.Duration(float64(time.Minute) / p.LimitPerMin).Round(time.Millisecond)
 	}
 	return d
 }
@@ -203,12 +203,12 @@ func (l *Limiter) GC(olderThan time.Duration) int {
 
 // LoginThresholds — политика лока.
 type LoginThresholds struct {
-	CaptchaAfter   int
-	LockAfter      int
-	LockFor        time.Duration
-	HardLockAfter  int
-	HardLockFor    time.Duration
-	Window         time.Duration
+	CaptchaAfter  int
+	LockAfter     int
+	LockFor       time.Duration
+	HardLockAfter int
+	HardLockFor   time.Duration
+	Window        time.Duration
 }
 
 // DefaultLoginThresholds — значения по умолчанию (FR-ABF-01).
@@ -243,11 +243,11 @@ func NewLoginGuard(th LoginThresholds) *LoginGuard {
 
 // GuardState — состояние проверки.
 type GuardState struct {
-	Locked      bool
-	RetryAfter  time.Duration
-	Captcha     bool
-	Fails       int
-	TotalFails  int
+	Locked     bool
+	RetryAfter time.Duration
+	Captcha    bool
+	Fails      int
+	TotalFails int
 }
 
 // RegisterFail фиксирует неудачу и возвращает состояние.

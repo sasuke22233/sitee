@@ -1,8 +1,8 @@
 package api
 
 import (
-	"encoding/base64"
 	"crypto/sha256"
+	"encoding/base64"
 	"encoding/hex"
 	"fmt"
 	"net/http"
@@ -26,15 +26,15 @@ import (
 // ---------------------------------------------------------------------------
 
 var disputeReasons = map[string]string{
-	"not_delivered":   "Товар не доставлен",
-	"wrong_item":      "Доставлен не тот товар",
-	"invalid_key":     "Ключ/аккаунт не работает",
-	"duplicate":       "Товар уже был продан (дубликат)",
-	"partial":         "Доставлено частично",
-	"quality":         "Качество не соответствует описанию",
-	"fraud":           "Подозрение на мошенничество",
-	"refund_request":  "Запрос возврата по гарантии",
-	"other":           "Другое",
+	"not_delivered":  "Товар не доставлен",
+	"wrong_item":     "Доставлен не тот товар",
+	"invalid_key":    "Ключ/аккаунт не работает",
+	"duplicate":      "Товар уже был продан (дубликат)",
+	"partial":        "Доставлено частично",
+	"quality":        "Качество не соответствует описанию",
+	"fraud":          "Подозрение на мошенничество",
+	"refund_request": "Запрос возврата по гарантии",
+	"other":          "Другое",
 }
 
 type openDisputeRequest struct {
@@ -125,11 +125,11 @@ func (s *Server) handleOpenDispute(w http.ResponseWriter, r *http.Request) {
 			ID: ids.New("dsp"), OrderID: o.ID, ShopID: o.ShopID, OpenedBy: u.ID,
 			ReasonCode: req.ReasonCode, Description: desc, Status: store.DisputeOpen,
 			BuyerID: o.BuyerID, SellerID: shop.AdminUserID,
-			BuyerAlias:  aliasFor(salt, o.BuyerID, "buyer"),
-			SellerAlias: aliasFor(salt, shop.AdminUserID, "shop"),
+			BuyerAlias:    aliasFor(salt, o.BuyerID, "buyer"),
+			SellerAlias:   aliasFor(salt, shop.AdminUserID, "shop"),
 			ReplyDeadline: time.Now().UTC().Add(time.Duration(s.Cfg.DisputeReplyHours) * time.Hour),
-			Salt:        salt,
-			CreatedAt:   time.Now().UTC(), UpdatedAt: time.Now().UTC(),
+			Salt:          salt,
+			CreatedAt:     time.Now().UTC(), UpdatedAt: time.Now().UTC(),
 		}
 		d.Timeline = append(d.Timeline, &store.DisputeEvent{
 			TS: d.CreatedAt, Kind: "opened", ActorID: u.ID,
@@ -374,8 +374,8 @@ func (s *Server) handleGetDispute(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	var (
-		dto  map[string]any
-		msgs []map[string]any
+		dto   map[string]any
+		msgs  []map[string]any
 		order *store.Order
 	)
 	s.Store.Read(func() {
@@ -418,7 +418,7 @@ func (s *Server) handleEscalateDispute(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	var req struct {
-		Comment  string `json:"comment"`
+		Comment   string `json:"comment"`
 		ArbiterID string `json:"arbiter_id"`
 	}
 	if err := httpx.Decode(r, &req); err != nil {
@@ -430,7 +430,7 @@ func (s *Server) handleEscalateDispute(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	var (
-		fail    *httpx.APIError
+		fail     *httpx.APIError
 		arbiters []string
 		assigned string
 	)
@@ -514,11 +514,11 @@ func (s *Server) handleEscalateDispute(w http.ResponseWriter, r *http.Request) {
 // ---------------------------------------------------------------------------
 
 type resolveDisputeRequest struct {
-	Resolution string `json:"resolution"` // refund_buyer|release_seller|partial|dismiss
-	AmountSOL  string `json:"amount_sol"`
-	AmountStars int64 `json:"amount_stars"`
-	Reason     string `json:"reason"`
-	TotpCode   string `json:"totp_code"`
+	Resolution  string `json:"resolution"` // refund_buyer|release_seller|partial|dismiss
+	AmountSOL   string `json:"amount_sol"`
+	AmountStars int64  `json:"amount_stars"`
+	Reason      string `json:"reason"`
+	TotpCode    string `json:"totp_code"`
 }
 
 func (s *Server) handleResolveDispute(w http.ResponseWriter, r *http.Request) {
@@ -558,12 +558,12 @@ func (s *Server) handleResolveDispute(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var (
-		fail     *httpx.APIError
-		txID     string
-		amount   int64
-		order    *store.Order
+		fail      *httpx.APIError
+		txID      string
+		amount    int64
+		order     *store.Order
 		newStatus string
-		refunded int64
+		refunded  int64
 	)
 	s.Store.Write(func() {
 		if d.Status == store.DisputeResolved || d.Status == store.DisputeDismissed {
@@ -673,7 +673,7 @@ func (s *Server) handleResolveDispute(w http.ResponseWriter, r *http.Request) {
 		if c := s.Store.Chats[d.ChatID]; c != nil {
 			s.appendSystemMessageLocked(c, nil, store.SystemPayload{
 				Kind: "dispute", OrderID: o.ID, Status: newStatus,
-				Title: "Решение арбитра: " + resolutionTitleRU(req.Resolution) + ". " + req.Reason,
+				Title:  "Решение арбитра: " + resolutionTitleRU(req.Resolution) + ". " + req.Reason,
 				Amount: strconv.FormatInt(refunded, 10), Asset: asset,
 			})
 			c.ClosedAt = time.Now().UTC()
