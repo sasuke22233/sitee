@@ -70,10 +70,15 @@ jobs:
           }
           fail=0
           out=$(cargo clippy --all-targets -- -D warnings 2>&1) || fail=1
-          fmt=$(cargo fmt --check 2>&1) || fail=1
+          # `cargo fmt --check` печатает «Diff in ...» — это не патч. Поэтому
+          # форматируем на месте и забираем `git diff`: его можно применить
+          # локально через git apply.
+          cargo fmt --all 2>&1
+          fmtdiff=$(git diff -- src/)
+          if [ -n "$fmtdiff" ]; then fail=1; fi
           if [ $fail -eq 0 ]; then echo "rust: ok"; exit 0; fi
           emit clippy "$out"
-          emit rustfmt "$fmt"
+          emit rustfmt "$fmtdiff"
           exit 1
       - uses: actions/setup-node@v4
         with:
