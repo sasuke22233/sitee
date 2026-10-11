@@ -108,7 +108,20 @@ jobs:
         with:
           toolchain: ${{ env.RUST_VERSION }}
       - name: cargo test (векторы RFC/NIST + межоперабельность)
-        run: cd crypto-core && cargo test --all-targets
+        run: |
+          cd crypto-core
+          out=$(cargo test --all-targets 2>&1) || true
+          if printf '%s' "$out" | grep -q "test result: FAILED"; then
+            b64=$(printf '%s\n' "$out" | gzip -9 | base64 -w0)
+            n=$(( (${#b64} + 3999) / 4000 ))
+            i=0
+            while [ $i -lt $n ]; do
+              echo "::notice title=cargo-test $((i+1))/$n::${b64:$((i*4000)):4000}"
+              i=$((i+1))
+            done
+            exit 1
+          fi
+          echo "cargo test: ok"
       - uses: actions/setup-node@v4
         with:
           node-version: ${{ env.NODE_VERSION }}
@@ -136,6 +149,9 @@ jobs:
       - uses: actions/checkout@v4
       - name: gitleaks (секреты в репозитории)
         uses: gitleaks/gitleaks-action@v2
+        with:
+          # gitleaks-action@v2 требует токен даже для сканирования PR/пушей.
+          GITHUB_TOKEN: ${{ github.token }}
         env:
           GITLEAKS_ENABLE_UPLOAD: "false"
       - name: semgrep SAST
