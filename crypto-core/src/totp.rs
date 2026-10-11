@@ -147,7 +147,7 @@ pub fn backup_codes(n: usize) -> (Vec<String>, Vec<String>) {
         let raw = random_bytes(BACKUP_CODE_LEN);
         let code: String = raw
             .iter()
-            .map(|b| BACKUP_ALPHABET[b as usize % BACKUP_ALPHABET.len()] as char)
+            .map(|b| BACKUP_ALPHABET[*b as usize % BACKUP_ALPHABET.len()] as char)
             .collect();
         hashes.push(to_hex(&sha256(code.to_uppercase().as_bytes())));
         codes.push(code);
