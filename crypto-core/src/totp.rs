@@ -47,7 +47,10 @@ pub fn decode_base32(s: &str) -> Result<Vec<u8>> {
     let mut value: u32 = 0;
     let mut out: Vec<u8> = Vec::with_capacity(clean.len() * 5 / 8);
     for ch in clean.chars() {
-        let idx = match B32.iter().position(|&b| b as char == ch.to_ascii_uppercase()) {
+        let idx = match B32
+            .iter()
+            .position(|&b| b as char == ch.to_ascii_uppercase())
+        {
             Some(i) => i as u32,
             None => return Err(Error::BadSecret(format!("недопустимый символ «{ch}»"))),
         };
@@ -94,9 +97,7 @@ pub fn validate_totp(secret: &[u8], code: &str, at_unix: u64, window: i64) -> Op
             continue;
         }
         let expected = hotp(secret, candidate as u64, TOTP_DIGITS);
-        if expected.len() == given.len()
-            && crate::timing_safe_equal(expected.as_bytes(), given)
-        {
+        if expected.len() == given.len() && crate::timing_safe_equal(expected.as_bytes(), given) {
             return Some(candidate as u64);
         }
     }
@@ -157,7 +158,9 @@ pub fn backup_codes(n: usize) -> (Vec<String>, Vec<String>) {
 /// Проверка резервного кода; возвращает индекс (для одноразового использования).
 pub fn verify_backup_code(code: &str, hashes: &[String]) -> Option<usize> {
     let digest = to_hex(&sha256(code.trim().to_uppercase().as_bytes()));
-    hashes.iter().position(|h| crate::timing_safe_equal(h.as_bytes(), digest.as_bytes()))
+    hashes
+        .iter()
+        .position(|h| crate::timing_safe_equal(h.as_bytes(), digest.as_bytes()))
 }
 
 #[cfg(test)]
@@ -168,10 +171,7 @@ mod tests {
     fn rfc6238_vectors() {
         // Секрет "12345678901234567890" в base32.
         let secret = decode_base32("GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ").unwrap();
-        assert_eq!(
-            secret_base32(&secret),
-            "GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ"
-        );
+        assert_eq!(secret_base32(&secret), "GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ");
         // 8-значные коды из RFC 6238 (SHA-1).
         let cases: [(u64, &str); 5] = [
             (59, "94287082"),
