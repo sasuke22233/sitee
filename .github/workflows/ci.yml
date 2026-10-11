@@ -36,17 +36,16 @@ jobs:
           # base64 от `gofmt -d` (в message аннотации нельзя переносы строк).
           bad=$(gofmt -l .)
           if [ -z "$bad" ]; then echo "gofmt: ok"; exit 0; fi
-          for f in $bad; do
-            echo "::error file=$f::gofmt -w $f"
-          done
-          # Аннотация обрезается на 4096 символов, поэтому base64-diff режем
-          # на чанки по 3000 и раскладываем по строкам — так его можно собрать.
+          # Одна аннотация со списком файлов + чанки base64-diff'а. Детали:
+          # message аннотации обрезается на 4096 символов, а на check-run
+          # приходится лимит аннотаций, поэтому по одной на файл не влезает.
+          echo "::error::gofmt-files: $(echo $bad | tr '\n' ' ')"
           for f in $bad; do
             b64=$(gofmt -d "$f" | base64 -w0)
-            n=$(( (${#b64} + 2999) / 3000 ))
+            n=$(( (${#b64} + 3999) / 4000 ))
             i=0
             while [ $i -lt $n ]; do
-              echo "::notice file=$f,line=$((i+1)),title=diff $((i+1))/$n::${b64:$((i*3000)):3000}"
+              echo "::notice file=$f,line=$((i+1)),title=$f $((i+1))/$n::${b64:$((i*4000)):4000}"
               i=$((i+1))
             done
           done
