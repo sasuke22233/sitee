@@ -242,7 +242,10 @@ func (c *Conn) Read() (Message, error) {
 			if len(payload) >= 2 {
 				code = int(binary.BigEndian.Uint16(payload[:2]))
 			}
-			_ = c.writeControl(OpClose, payload)
+			// RFC 6455 §5.5.1: отвечаем close-кадром с тем же кодом.
+			echo := make([]byte, 2)
+			binary.BigEndian.PutUint16(echo, uint16(code))
+			_ = c.writeControl(OpClose, echo)
 			c.CloseNow()
 			return Message{}, io.EOF
 		case OpText, OpBinary:
@@ -493,7 +496,7 @@ type Hub struct {
 }
 
 // NewHub создаёт хаб.
-func NewHub() *Hub { return &Hub{peers: map[string]map[*Conn]struct{}} }
+func NewHub() *Hub { return &Hub{peers: map[string]map[*Conn]struct{}{}} }
 
 // Register добавляет соединение.
 func (h *Hub) Register(key string, c *Conn) {

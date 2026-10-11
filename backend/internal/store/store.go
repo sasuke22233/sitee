@@ -800,7 +800,7 @@ func (s *Store) Setting(key string, def any) any {
 
 // SettingInt — целочисленная настройка.
 func (s *Store) SettingInt(key string, def int) int {
-	switch v := s.Setting(key).(type) {
+	switch v := s.Setting(key, nil).(type) {
 	case int:
 		return v
 	case int64:
@@ -817,7 +817,7 @@ func (s *Store) SettingInt(key string, def int) int {
 
 // SettingFloat — дробная настройка.
 func (s *Store) SettingFloat(key string, def float64) float64 {
-	switch v := s.Setting(key).(type) {
+	switch v := s.Setting(key, nil).(type) {
 	case float64:
 		return v
 	case int:
