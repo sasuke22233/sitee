@@ -28,10 +28,19 @@ jobs:
       - uses: actions/setup-go@v5
         with:
           go-version: ${{ env.GO_VERSION }}
-      - name: go vet
+      - name: go vet + gofmt
         run: |
-          cd backend && go vet ./... && gofmt -l . | tee /tmp/fmt.txt
-          test ! -s /tmp/fmt.txt || (echo "gofmt: файлы не отформатированы" && exit 1)
+          cd backend && go vet ./...
+          # gofmt: без аннотаций в логе остаётся только «exit code 1» и непонятно,
+          # какие файлы править. Поэтому на каждый файл — аннотация с именем и
+          # base64 от `gofmt -d` (в message аннотации нельзя переносы строк).
+          bad=$(gofmt -l .)
+          if [ -z "$bad" ]; then echo "gofmt: ok"; exit 0; fi
+          for f in $bad; do
+            d=$(gofmt -d "$f" | base64 -w0)
+            echo "::error file=$f::gofmt -w $f; diff-b64:$d"
+          done
+          exit 1
       - uses: dtolnay/rust-toolchain@stable
         with:
           toolchain: ${{ env.RUST_VERSION }}
