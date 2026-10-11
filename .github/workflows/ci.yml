@@ -258,6 +258,7 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
       - name: build + push (multi-arch)
+        id: build
         uses: docker/build-push-action@v6
         with:
           context: .
@@ -273,7 +274,7 @@ jobs:
         if: github.ref == 'refs/heads/main'
         uses: anchore/sbom-action@v0
         with:
-          image: ${{ matrix.image }}:sha-${{ github.sha }}
+          image: ${{ matrix.image }}@${{ steps.build.outputs.digest }}
           format: cyclonedx-json
           output-file: sbom-${{ matrix.name }}.cdx.json
       - name: подпись cosign (keyless Sigstore)
@@ -304,7 +305,7 @@ jobs:
           fi
           emit "cosign-version" "$(cosign version 2>&1)"
           status=0
-          out=$(cosign sign "${{ matrix.image }}:sha-${{ github.sha }}" 2>&1) || status=$?
+          out=$(cosign sign "${{ matrix.image }}@${{ steps.build.outputs.digest }}" 2>&1) || status=$?
           emit "cosign-sign" "$out"
           if [ "$status" -ne 0 ]; then
             echo "::error::cosign sign завершился кодом $status"
